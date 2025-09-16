@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  # MongoDB database
+  mongodb:
+    image: mongo:7
+    container_name: chat-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: chat_service
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - chat-network
+
+  # NATS JetStream
+  nats:
+    image: nats:2.10-alpine
+    container_name: chat-nats
+    restart: unless-stopped
+    command: [
+      "-js",
+      "-sd", "/data",
+      "--http_port", "8222"
+    ]
+    ports:
+      - "4222:4222"  # NATS port
+      - "8222:8222"  # HTTP monitoring port
+    volumes:
+      - nats_data:/data
+    networks:
+      - chat-network
+
+  # Go backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: chat-backend
+    restart: unless-stopped
+    environment:
+      - PORT=8080
+      - MONGODB_URI=mongodb://mongodb:27017
+      - DATABASE_NAME=chat_service
+      - NATS_URL=nats://nats:4222
+      - JWT_PUBLIC_KEY_PEM=${JWT_PUBLIC_KEY_PEM}
+      - JWT_ISSUER=chat-service
+      - JWT_AUDIENCE=chat-frontend
+      - ALLOWED_ORIGINS=http://localhost:3001
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mongodb
+      - nats
+    networks:
+      - chat-network
+    volumes:
+      - ./backend:/app
+    working_dir: /app
+
+  # Next.js frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: chat-frontend
+    restart: unless-stopped
+    environment:
+      - NEXTAUTH_URL=http://localhost:3001
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - GITHUB_ID=${GITHUB_ID}
+      - GITHUB_SECRET=${GITHUB_SECRET}
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8080
+      - JWT_ISSUER=chat-service
+      - JWT_AUDIENCE=chat-frontend
+    ports:
+      - "3001:3000"
+    depends_on:
+      - backend
+    networks:
+      - chat-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+
+  # MongoDB Express (optional - for database management)
+  mongo-express:
+    image: mongo-express:1.0.2
+    container_name: chat-mongo-express
+    restart: unless-stopped
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+    ports:
+      - "8081:8081"
+    depends_on:
+      - mongodb
+    networks:
+      - chat-network
+
+volumes:
+  mongodb_data:
+  nats_data:
+
+networks:
+  chat-network:
+    driver: bridge

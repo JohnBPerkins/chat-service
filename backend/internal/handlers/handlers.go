@@ -1,0 +1,277 @@
+package handlers
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/JohnBPerkins/chat-service/backend/internal/middleware"
+	"github.com/JohnBPerkins/chat-service/backend/internal/models"
+	"github.com/JohnBPerkins/chat-service/backend/internal/services"
+	"github.com/go-chi/chi/v5"
+)
+
+type Handlers struct {
+	UserService         *services.UserService
+	ConversationService *services.ConversationService
+	MessageService      *services.MessageService
+	WebSocketHub        *services.WebSocketHub
+}
+
+func (h *Handlers) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := h.UserService.GetUserByID(r.Context(), userID)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
+}
+
+func (h *Handlers) UpsertUser(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	var user models.User
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Set user ID from token and created time
+	user.ID = userID
+	user.CreatedAt = time.Now()
+
+	if err := h.UserService.UpsertUser(r.Context(), &user); err != nil {
+		http.Error(w, "Failed to upsert user", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
+}
+
+func (h *Handlers) GetConversations(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	conversations, err := h.ConversationService.GetUserConversations(r.Context(), userID)
+	if err != nil {
+		http.Error(w, "Failed to get conversations", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(conversations)
+}
+
+func (h *Handlers) CreateConversation(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	var req models.CreateConversationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate request
+	if req.Kind != "dm" && req.Kind != "group" {
+		http.Error(w, "Invalid conversation kind", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Members) == 0 {
+		http.Error(w, "At least one member is required", http.StatusBadRequest)
+		return
+	}
+
+	conversation, err := h.ConversationService.CreateConversation(r.Context(), &req, userID)
+	if err != nil {
+		http.Error(w, "Failed to create conversation", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(conversation)
+}
+
+func (h *Handlers) GetMessages(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	conversationID := chi.URLParam(r, "id")
+	if conversationID == "" {
+		http.Error(w, "Conversation ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Check if user is participant
+	isParticipant, err := h.ConversationService.IsUserParticipant(r.Context(), conversationID, userID)
+	if err != nil {
+		http.Error(w, "Failed to check participation", http.StatusInternalServerError)
+		return
+	}
+	if !isParticipant {
+		http.Error(w, "Access denied", http.StatusForbidden)
+		return
+	}
+
+	// Parse query parameters
+	before := r.URL.Query().Get("before")
+	limitStr := r.URL.Query().Get("limit")
+
+	limit := 50 // default
+	if limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= 100 {
+			limit = parsedLimit
+		}
+	}
+
+	response, err := h.MessageService.GetMessages(r.Context(), conversationID, before, limit)
+	if err != nil {
+		http.Error(w, "Failed to get messages", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func (h *Handlers) SendMessage(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	var req models.SendMessageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate request
+	if req.ConversationID == "" || req.ClientMsgID == "" || req.Body == "" {
+		http.Error(w, "Missing required fields", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Body) > 4000 {
+		http.Error(w, "Message body too long", http.StatusBadRequest)
+		return
+	}
+
+	// Check if user is participant
+	isParticipant, err := h.ConversationService.IsUserParticipant(r.Context(), req.ConversationID, userID)
+	if err != nil {
+		http.Error(w, "Failed to check participation", http.StatusInternalServerError)
+		return
+	}
+	if !isParticipant {
+		http.Error(w, "Access denied", http.StatusForbidden)
+		return
+	}
+
+	message, err := h.MessageService.SendMessage(r.Context(), &req, userID)
+	if err != nil {
+		http.Error(w, "Failed to send message", http.StatusInternalServerError)
+		return
+	}
+
+	// Update conversation last message timestamp
+	go h.ConversationService.UpdateLastMessageAt(r.Context(), req.ConversationID)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(message)
+}
+
+func (h *Handlers) MarkMessageAsRead(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	messageIDStr := chi.URLParam(r, "id")
+	if messageIDStr == "" {
+		http.Error(w, "Message ID is required", http.StatusBadRequest)
+		return
+	}
+
+	messageID, err := strconv.ParseInt(messageIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid message ID", http.StatusBadRequest)
+		return
+	}
+
+	var req models.MarkMessageAsReadRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Check if user is participant
+	isParticipant, err := h.ConversationService.IsUserParticipant(r.Context(), req.ConversationID, userID)
+	if err != nil {
+		http.Error(w, "Failed to check participation", http.StatusInternalServerError)
+		return
+	}
+	if !isParticipant {
+		http.Error(w, "Access denied", http.StatusForbidden)
+		return
+	}
+
+	err = h.MessageService.MarkMessageAsRead(r.Context(), req.ConversationID, userID, messageID)
+	if err != nil {
+		http.Error(w, "Failed to mark message as read", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handlers) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
+	// Extract JWT from query parameter or header for WebSocket upgrade
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		// Try Authorization header
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != "" {
+			token = authHeader[7:] // Remove "Bearer " prefix
+		}
+	}
+
+	if token == "" {
+		http.Error(w, "Missing authentication token", http.StatusUnauthorized)
+		return
+	}
+
+	// TODO: Validate JWT and extract user ID
+	// For now, using a placeholder - this should be implemented properly
+	userID := "placeholder-user-id"
+
+	h.WebSocketHub.HandleWebSocket(w, r, userID)
+}
