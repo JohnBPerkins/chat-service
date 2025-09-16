@@ -8,6 +8,7 @@ import (
 	"github.com/JohnBPerkins/chat-service/backend/pkg/database"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type UserService struct {
@@ -21,19 +22,9 @@ func NewUserService(db *database.MongoDB) *UserService {
 func (s *UserService) UpsertUser(ctx context.Context, user *models.User) error {
 	collection := s.db.DB.Collection("users")
 
-	filter := bson.M{"_id": user.ID}
-	update := bson.M{
-		"$set": bson.M{
-			"email":     user.Email,
-			"name":      user.Name,
-			"avatarUrl": user.AvatarURL,
-		},
-		"$setOnInsert": bson.M{
-			"createdAt": user.CreatedAt,
-		},
-	}
-
-	_, err := collection.UpdateOne(ctx, filter, update, nil)
+	// Simplified approach - just insert or replace
+	opts := options.Replace().SetUpsert(true)
+	_, err := collection.ReplaceOne(ctx, bson.M{"_id": user.ID}, user, opts)
 	if err != nil {
 		return fmt.Errorf("failed to upsert user: %w", err)
 	}

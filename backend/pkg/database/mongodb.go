@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -30,9 +31,10 @@ func NewMongoDB(uri, dbName string) (*MongoDB, error) {
 	db := client.Database(dbName)
 
 	// Create indexes
-	if err := createIndexes(ctx, db); err != nil {
-		return nil, err
-	}
+	// Temporarily disabled to isolate connection issue
+	// if err := createIndexes(ctx, db); err != nil {
+	// 	return nil, err
+	// }
 
 	return &MongoDB{
 		Client: client,
@@ -50,7 +52,7 @@ func createIndexes(ctx context.Context, db *mongo.Database) error {
 	// Users collection indexes
 	usersCollection := db.Collection("users")
 	_, err := usersCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    map[string]interface{}{"email": 1},
+		Keys:    bson.D{{Key: "email", Value: 1}},
 		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {
@@ -60,7 +62,7 @@ func createIndexes(ctx context.Context, db *mongo.Database) error {
 	// Conversations collection indexes
 	conversationsCollection := db.Collection("conversations")
 	_, err = conversationsCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: map[string]interface{}{"lastMessageAt": -1},
+		Keys: bson.D{{Key: "lastMessageAt", Value: -1}},
 	})
 	if err != nil {
 		return err
@@ -68,23 +70,16 @@ func createIndexes(ctx context.Context, db *mongo.Database) error {
 
 	// Participants collection indexes
 	participantsCollection := db.Collection("participants")
+
 	_, err = participantsCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    map[string]interface{}{"_id": 1},
-		Options: options.Index().SetUnique(true),
+		Keys: bson.D{{Key: "conversationId", Value: 1}},
 	})
 	if err != nil {
 		return err
 	}
 
 	_, err = participantsCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: map[string]interface{}{"conversationId": 1},
-	})
-	if err != nil {
-		return err
-	}
-
-	_, err = participantsCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: map[string]interface{}{"userId": 1},
+		Keys: bson.D{{Key: "userId", Value: 1}},
 	})
 	if err != nil {
 		return err
@@ -93,10 +88,10 @@ func createIndexes(ctx context.Context, db *mongo.Database) error {
 	// Messages collection indexes - critical for performance
 	messagesCollection := db.Collection("messages")
 	_, err = messagesCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: map[string]interface{}{
-			"conversationId": 1,
-			"createdAt":      -1,
-			"_id":            -1,
+		Keys: bson.D{
+			{Key: "conversationId", Value: 1},
+			{Key: "createdAt", Value: -1},
+			{Key: "_id", Value: -1},
 		},
 	})
 	if err != nil {
@@ -105,10 +100,10 @@ func createIndexes(ctx context.Context, db *mongo.Database) error {
 
 	// Unique index for idempotency
 	_, err = messagesCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: map[string]interface{}{
-			"conversationId": 1,
-			"senderId":       1,
-			"clientMsgId":    1,
+		Keys: bson.D{
+			{Key: "conversationId", Value: 1},
+			{Key: "senderId", Value: 1},
+			{Key: "clientMsgId", Value: 1},
 		},
 		Options: options.Index().SetUnique(true),
 	})

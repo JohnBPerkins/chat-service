@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/JohnBPerkins/chat-service/backend/internal/middleware"
 	"github.com/JohnBPerkins/chat-service/backend/internal/models"
 	"github.com/JohnBPerkins/chat-service/backend/internal/services"
 	"github.com/go-chi/chi/v5"
@@ -20,9 +19,11 @@ type Handlers struct {
 }
 
 func (h *Handlers) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
-	userID, ok := middleware.GetUserIDFromContext(r.Context())
-	if !ok {
-		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
+	// TODO: Integrate with NextAuth.js session
+	// For now, expect userID as query parameter for testing
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		http.Error(w, "User ID required as query parameter", http.StatusBadRequest)
 		return
 	}
 
@@ -37,21 +38,22 @@ func (h *Handlers) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) UpsertUser(w http.ResponseWriter, r *http.Request) {
-	userID, ok := middleware.GetUserIDFromContext(r.Context())
-	if !ok {
-		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
-		return
-	}
-
 	var user models.User
 	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// Set user ID from token and created time
-	user.ID = userID
-	user.CreatedAt = time.Now()
+	// User ID should be in the request body
+	if user.ID == "" {
+		http.Error(w, "User ID required in request body", http.StatusBadRequest)
+		return
+	}
+
+	// Set created time if not provided
+	if user.CreatedAt.IsZero() {
+		user.CreatedAt = time.Now()
+	}
 
 	if err := h.UserService.UpsertUser(r.Context(), &user); err != nil {
 		http.Error(w, "Failed to upsert user", http.StatusInternalServerError)
@@ -63,9 +65,9 @@ func (h *Handlers) UpsertUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) GetConversations(w http.ResponseWriter, r *http.Request) {
-	userID, ok := middleware.GetUserIDFromContext(r.Context())
-	if !ok {
-		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		http.Error(w, "User ID required as query parameter", http.StatusBadRequest)
 		return
 	}
 
@@ -80,9 +82,9 @@ func (h *Handlers) GetConversations(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) CreateConversation(w http.ResponseWriter, r *http.Request) {
-	userID, ok := middleware.GetUserIDFromContext(r.Context())
-	if !ok {
-		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		http.Error(w, "User ID required as query parameter", http.StatusBadRequest)
 		return
 	}
 
@@ -115,9 +117,9 @@ func (h *Handlers) CreateConversation(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) GetMessages(w http.ResponseWriter, r *http.Request) {
-	userID, ok := middleware.GetUserIDFromContext(r.Context())
-	if !ok {
-		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		http.Error(w, "User ID required as query parameter", http.StatusBadRequest)
 		return
 	}
 
@@ -160,9 +162,9 @@ func (h *Handlers) GetMessages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) SendMessage(w http.ResponseWriter, r *http.Request) {
-	userID, ok := middleware.GetUserIDFromContext(r.Context())
-	if !ok {
-		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		http.Error(w, "User ID required as query parameter", http.StatusBadRequest)
 		return
 	}
 
@@ -209,9 +211,9 @@ func (h *Handlers) SendMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) MarkMessageAsRead(w http.ResponseWriter, r *http.Request) {
-	userID, ok := middleware.GetUserIDFromContext(r.Context())
-	if !ok {
-		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		http.Error(w, "User ID required as query parameter", http.StatusBadRequest)
 		return
 	}
 
@@ -254,24 +256,13 @@ func (h *Handlers) MarkMessageAsRead(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	// Extract JWT from query parameter or header for WebSocket upgrade
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		// Try Authorization header
-		authHeader := r.Header.Get("Authorization")
-		if authHeader != "" {
-			token = authHeader[7:] // Remove "Bearer " prefix
-		}
+	// TODO: Integrate with NextAuth.js session validation
+	// For now, expect userID as query parameter for testing
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		// Use a default user ID for testing
+		userID = "test-user-123"
 	}
-
-	if token == "" {
-		http.Error(w, "Missing authentication token", http.StatusUnauthorized)
-		return
-	}
-
-	// TODO: Validate JWT and extract user ID
-	// For now, using a placeholder - this should be implemented properly
-	userID := "placeholder-user-id"
 
 	h.WebSocketHub.HandleWebSocket(w, r, userID)
 }

@@ -13,15 +13,18 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8
 
 class ApiClient {
   private async getAuthHeaders(): Promise<HeadersInit> {
-    const session = await getSession()
-    if (!session?.accessToken) {
-      throw new Error('No authentication token available')
-    }
-
     return {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.accessToken}`,
     }
+  }
+
+  private async getUserId(): Promise<string> {
+    const session = await getSession()
+    if (!session?.user?.email) {
+      throw new Error('No authenticated user')
+    }
+    // Use email as user ID for now (in production, map this properly)
+    return session.user.email
   }
 
   private async request<T>(
@@ -57,23 +60,29 @@ class ApiClient {
 
   // User APIs
   async getCurrentUser(): Promise<User> {
-    return this.request<User>('/v1/me')
+    const userId = await this.getUserId()
+    return this.request<User>(`/v1/me?userId=${encodeURIComponent(userId)}`)
   }
 
   async upsertUser(userData: Partial<User>): Promise<User> {
+    const userId = await this.getUserId()
+    // Include the user ID in the userData
+    const userDataWithId = { ...userData, id: userId }
     return this.request<User>('/v1/users/me', {
       method: 'PUT',
-      body: JSON.stringify(userData),
+      body: JSON.stringify(userDataWithId),
     })
   }
 
   // Conversation APIs
   async getConversations(): Promise<Conversation[]> {
-    return this.request<Conversation[]>('/v1/conversations')
+    const userId = await this.getUserId()
+    return this.request<Conversation[]>(`/v1/conversations?userId=${encodeURIComponent(userId)}`)
   }
 
   async createConversation(data: CreateConversationRequest): Promise<Conversation> {
-    return this.request<Conversation>('/v1/conversations', {
+    const userId = await this.getUserId()
+    return this.request<Conversation>(`/v1/conversations?userId=${encodeURIComponent(userId)}`, {
       method: 'POST',
       body: JSON.stringify(data),
     })
@@ -85,7 +94,11 @@ class ApiClient {
     before?: string,
     limit: number = 50
   ): Promise<PaginatedMessagesResponse> {
-    const params = new URLSearchParams({ limit: limit.toString() })
+    const userId = await this.getUserId()
+    const params = new URLSearchParams({
+      limit: limit.toString(),
+      userId: userId
+    })
     if (before) {
       params.append('before', before)
     }
@@ -96,14 +109,16 @@ class ApiClient {
   }
 
   async sendMessage(data: SendMessageRequest): Promise<Message> {
-    return this.request<Message>('/v1/messages', {
+    const userId = await this.getUserId()
+    return this.request<Message>(`/v1/messages?userId=${encodeURIComponent(userId)}`, {
       method: 'POST',
       body: JSON.stringify(data),
     })
   }
 
   async markMessageAsRead(conversationId: string, messageId: number): Promise<void> {
-    await this.request(`/v1/messages/${messageId}/read`, {
+    const userId = await this.getUserId()
+    await this.request(`/v1/messages/${messageId}/read?userId=${encodeURIComponent(userId)}`, {
       method: 'POST',
       body: JSON.stringify({ conversationId }),
     })

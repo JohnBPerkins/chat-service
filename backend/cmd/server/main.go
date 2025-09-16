@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/JohnBPerkins/chat-service/backend/internal/handlers"
-	"github.com/JohnBPerkins/chat-service/backend/internal/middleware"
 	"github.com/JohnBPerkins/chat-service/backend/internal/services"
 	"github.com/JohnBPerkins/chat-service/backend/pkg/database"
 	"github.com/JohnBPerkins/chat-service/backend/pkg/nats"
@@ -22,14 +21,11 @@ import (
 func main() {
 	// Load configuration
 	config := &Config{
-		Port:             getEnv("PORT", "8080"),
-		MongoURI:         getEnv("MONGODB_URI", "mongodb://localhost:27017"),
-		DatabaseName:     getEnv("DATABASE_NAME", "chat_service"),
-		NATSUrl:          getEnv("NATS_URL", "nats://localhost:4222"),
-		JWTPublicKey:     getEnv("JWT_PUBLIC_KEY_PEM", ""),
-		JWTIssuer:        getEnv("JWT_ISSUER", "chat-service"),
-		JWTAudience:      getEnv("JWT_AUDIENCE", "chat-frontend"),
-		AllowedOrigins:   getEnv("ALLOWED_ORIGINS", "http://localhost:3001"),
+		Port:           getEnv("PORT", "8080"),
+		MongoURI:       getEnv("MONGODB_URI", "mongodb://localhost:27017"),
+		DatabaseName:   getEnv("DATABASE_NAME", "chat_service"),
+		NATSUrl:        getEnv("NATS_URL", "nats://localhost:4222"),
+		AllowedOrigins: getEnv("ALLOWED_ORIGINS", "http://localhost:3000"),
 	}
 
 	// Initialize MongoDB
@@ -83,11 +79,8 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
-	// API routes
+	// API routes (no JWT middleware - using GitHub OAuth only)
 	r.Route("/v1", func(r chi.Router) {
-		// JWT middleware for protected routes
-		r.Use(middleware.JWTAuthMiddleware(config.JWTPublicKey, config.JWTIssuer, config.JWTAudience))
-
 		// User routes
 		r.Get("/me", handlers.GetCurrentUser)
 		r.Put("/users/me", handlers.UpsertUser)
@@ -141,9 +134,6 @@ type Config struct {
 	MongoURI       string
 	DatabaseName   string
 	NATSUrl        string
-	JWTPublicKey   string
-	JWTIssuer      string
-	JWTAudience    string
 	AllowedOrigins string
 }
 

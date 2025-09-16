@@ -105,7 +105,7 @@ func (s *ConversationService) GetUserConversations(ctx context.Context, userID s
 	conversationCursor, err := conversationsCollection.Find(
 		ctx,
 		bson.M{"_id": bson.M{"$in": conversationIDs}},
-		options.Find().SetSort(bson.M{"lastMessageAt": -1}),
+		options.Find().SetSort(bson.D{{Key: "lastMessageAt", Value: -1}}),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find conversations: %w", err)
@@ -153,7 +153,7 @@ func (s *ConversationService) UpdateLastMessageAt(ctx context.Context, conversat
 	_, err := collection.UpdateOne(
 		ctx,
 		bson.M{"_id": conversationID},
-		bson.M{"$set": bson.M{"lastMessageAt": time.Now()}},
+		bson.D{{Key: "$set", Value: bson.D{{Key: "lastMessageAt", Value: time.Now()}}}},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update lastMessageAt: %w", err)

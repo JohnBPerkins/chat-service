@@ -47,10 +47,10 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 		if mongo.IsDuplicateKeyError(err) {
 			// Find and return existing message
 			var existingMessage models.Message
-			filter := bson.M{
-				"conversationId": req.ConversationID,
-				"senderId":       senderID,
-				"clientMsgId":    req.ClientMsgID,
+			filter := bson.D{
+				{Key: "conversationId", Value: req.ConversationID},
+				{Key: "senderId", Value: senderID},
+				{Key: "clientMsgId", Value: req.ClientMsgID},
 			}
 			err := collection.FindOne(ctx, filter).Decode(&existingMessage)
 			if err != nil {
@@ -82,15 +82,20 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 func (s *MessageService) GetMessages(ctx context.Context, conversationID string, before string, limit int) (*models.PaginatedMessagesResponse, error) {
 	collection := s.db.DB.Collection("messages")
 
-	filter := bson.M{"conversationId": conversationID}
-
-	// Add pagination filter if before cursor is provided
+	var filter bson.D
 	if before != "" {
 		// Parse before cursor (could be timestamp or message ID)
 		// For simplicity, assume it's a timestamp for now
 		if beforeTime, err := time.Parse(time.RFC3339, before); err == nil {
-			filter["createdAt"] = bson.M{"$lt": beforeTime}
+			filter = bson.D{
+				{Key: "conversationId", Value: conversationID},
+				{Key: "createdAt", Value: bson.D{{Key: "$lt", Value: beforeTime}}},
+			}
+		} else {
+			filter = bson.D{{Key: "conversationId", Value: conversationID}}
 		}
+	} else {
+		filter = bson.D{{Key: "conversationId", Value: conversationID}}
 	}
 
 	// Set default limit
@@ -99,7 +104,7 @@ func (s *MessageService) GetMessages(ctx context.Context, conversationID string,
 	}
 
 	opts := options.Find().
-		SetSort(bson.M{"createdAt": -1, "_id": -1}).
+		SetSort(bson.D{{Key: "createdAt", Value: -1}, {Key: "_id", Value: -1}}).
 		SetLimit(int64(limit + 1)) // Fetch one extra to check if there are more
 
 	cursor, err := collection.Find(ctx, filter, opts)
@@ -135,7 +140,7 @@ func (s *MessageService) MarkMessageAsRead(ctx context.Context, conversationID, 
 
 	participantID := fmt.Sprintf("%s:%s", conversationID, userID)
 	filter := bson.M{"_id": participantID}
-	update := bson.M{"$set": bson.M{"lastReadMessageId": messageID}}
+	update := bson.D{{Key: "$set", Value: bson.D{{Key: "lastReadMessageId", Value: messageID}}}}
 
 	_, err := collection.UpdateOne(ctx, filter, update)
 	if err != nil {
