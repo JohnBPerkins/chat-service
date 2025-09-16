@@ -22,13 +22,13 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/server
 # Final stage - minimal production image
 FROM alpine:latest
 
-# Install ca-certificates for HTTPS and wget for health checks
-RUN apk --no-cache add ca-certificates tzdata wget
+# Install ca-certificates for HTTPS
+RUN apk --no-cache add ca-certificates tzdata
 
 # Create non-root user
 RUN adduser -D -s /bin/sh appuser
 
-WORKDIR /app
+WORKDIR /root/
 
 # Copy the binary from builder stage
 COPY --from=builder /app/main .
@@ -39,7 +39,7 @@ RUN chown appuser:appuser main
 # Use non-root user
 USER appuser
 
-# Expose port
+# Expose port (Railway will override with $PORT)
 EXPOSE 8080
 
 # Health check

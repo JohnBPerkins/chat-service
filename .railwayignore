@@ -1,0 +1,46 @@
+# Frontend files (not needed for backend deployment)
+frontend/
+vercel.json
+.vercelignore
+
+# Development files
+.env.local
+.env.*.local
+docker-compose.yml
+docker-compose.*.yml
+
+# Documentation
+*.md
+DESIGN.md
+VERCEL_DEPLOYMENT.md
+RAILWAY_DEPLOYMENT.md
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+
+# Development scripts
+scripts/
+
+# Docker files (Railway uses Dockerfile from backend/)
+Dockerfile.simple
+Dockerfile.ubuntu
+
+# Node.js (not needed for Go backend)
+node_modules/
+package.json
+package-lock.json

@@ -1,0 +1,15 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "backend/Dockerfile"
+buildPath = "/backend"
+
+[deploy]
+startCommand = "./main"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
+healthcheckPath = "/healthz"
+healthcheckTimeout = 30
+
+[env]
+# Railway will auto-generate PORT, but we can set our default
+PORT = "8080"

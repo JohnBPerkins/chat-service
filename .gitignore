@@ -45,6 +45,7 @@ coverage.txt
 .env.test.local
 .env.production.local
 .env.example
+.env.production
 
 # Logs
 logs
