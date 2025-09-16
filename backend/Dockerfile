@@ -1,8 +1,5 @@
-# Build stage
-FROM golang:1.21-alpine AS builder
-
-# Install git for private repos
-RUN apk add --no-cache git
+# Ubuntu-based build for better compatibility
+FROM golang:1.23
 
 # Set working directory
 WORKDIR /app
@@ -17,18 +14,7 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/server
-
-# Final stage
-FROM alpine:latest
-
-# Install ca-certificates for HTTPS requests
-RUN apk --no-cache add ca-certificates
-
-WORKDIR /root/
-
-# Copy the binary from builder stage
-COPY --from=builder /app/main .
+RUN go mod tidy && go build -o main ./cmd/server
 
 # Expose port
 EXPOSE 8080
