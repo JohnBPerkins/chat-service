@@ -13,11 +13,15 @@ import (
 )
 
 type ConversationService struct {
-	db *database.MongoDB
+	db          *database.MongoDB
+	userService *UserService
 }
 
-func NewConversationService(db *database.MongoDB) *ConversationService {
-	return &ConversationService{db: db}
+func NewConversationService(db *database.MongoDB, userService *UserService) *ConversationService {
+	return &ConversationService{
+		db:          db,
+		userService: userService,
+	}
 }
 
 func (s *ConversationService) CreateConversation(ctx context.Context, req *models.CreateConversationRequest, creatorID string) (*models.Conversation, error) {
@@ -75,7 +79,7 @@ func (s *ConversationService) CreateConversation(ctx context.Context, req *model
 	return conversation, nil
 }
 
-func (s *ConversationService) GetUserConversations(ctx context.Context, userID string) ([]models.Conversation, error) {
+func (s *ConversationService) GetUserConversations(ctx context.Context, userID string) ([]models.ConversationWithParticipants, error) {
 	participantsCollection := s.db.DB.Collection("participants")
 	conversationsCollection := s.db.DB.Collection("conversations")
 
@@ -92,7 +96,7 @@ func (s *ConversationService) GetUserConversations(ctx context.Context, userID s
 	}
 
 	if len(participants) == 0 {
-		return []models.Conversation{}, nil
+		return []models.ConversationWithParticipants{}, nil
 	}
 
 	// Extract conversation IDs
@@ -117,7 +121,41 @@ func (s *ConversationService) GetUserConversations(ctx context.Context, userID s
 		return nil, fmt.Errorf("failed to decode conversations: %w", err)
 	}
 
-	return conversations, nil
+	// Convert to ConversationWithParticipants and populate participants
+	result := make([]models.ConversationWithParticipants, len(conversations))
+	for i, conv := range conversations {
+		result[i] = models.ConversationWithParticipants{
+			ID:            conv.ID,
+			Kind:          conv.Kind,
+			Title:         conv.Title,
+			CreatedAt:     conv.CreatedAt,
+			LastMessageAt: conv.LastMessageAt,
+		}
+
+		// Get all participants for this conversation
+		participantCursor, err := participantsCollection.Find(ctx, bson.M{"conversationId": conv.ID})
+		if err != nil {
+			return nil, fmt.Errorf("failed to find conversation participants: %w", err)
+		}
+
+		var convParticipants []models.Participant
+		if err = participantCursor.All(ctx, &convParticipants); err != nil {
+			participantCursor.Close(ctx)
+			return nil, fmt.Errorf("failed to decode conversation participants: %w", err)
+		}
+		participantCursor.Close(ctx)
+
+		// Populate user info for each participant
+		participantUsers := make([]models.User, 0, len(convParticipants))
+		for _, p := range convParticipants {
+			if user, err := s.userService.GetUserByID(ctx, p.UserID); err == nil {
+				participantUsers = append(participantUsers, *user)
+			}
+		}
+		result[i].Participants = participantUsers
+	}
+
+	return result, nil
 }
 
 func (s *ConversationService) GetConversationByID(ctx context.Context, conversationID string) (*models.Conversation, error) {

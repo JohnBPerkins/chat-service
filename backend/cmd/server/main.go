@@ -44,7 +44,7 @@ func main() {
 
 	// Initialize services
 	userService := services.NewUserService(db)
-	conversationService := services.NewConversationService(db)
+	conversationService := services.NewConversationService(db, userService)
 	messageService := services.NewMessageService(db, nc, userService)
 
 	// Initialize handlers

@@ -22,6 +22,16 @@ type Conversation struct {
 	LastMessageAt time.Time `bson:"lastMessageAt" json:"lastMessageAt"`
 }
 
+// ConversationWithParticipants represents a conversation with populated participant info for API responses
+type ConversationWithParticipants struct {
+	ID            string    `json:"id"`
+	Kind          string    `json:"kind"`
+	Title         string    `json:"title,omitempty"`
+	CreatedAt     time.Time `json:"createdAt"`
+	LastMessageAt time.Time `json:"lastMessageAt"`
+	Participants  []User    `json:"participants"`
+}
+
 // Participant represents a user's participation in a conversation
 type Participant struct {
 	ID                 string    `bson:"_id" json:"id"` // Format: "conversationId:userId"
