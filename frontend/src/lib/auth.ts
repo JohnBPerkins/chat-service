@@ -69,13 +69,14 @@ export const authOptions: NextAuthOptions = {
 
 async function upsertUser(user: any) {
   try {
-    const response = await fetch(`${process.env.API_BASE_URL}/v1/users/me`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'}/v1/users/me`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         // Note: In production, we'd send the JWT token here
       },
       body: JSON.stringify({
+        id: user.email, // Use email as user ID
         email: user.email,
         name: user.name,
         avatarUrl: user.image,

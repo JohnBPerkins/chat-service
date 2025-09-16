@@ -141,7 +141,12 @@ func (c *Client) handleFrame(frame *models.WSFrame) {
 	switch frame.Type {
 	case "subscribe":
 		var data models.WSSubscribeData
-		if err := json.Unmarshal(frame.Data.([]byte), &data); err != nil {
+		dataBytes, err := json.Marshal(frame.Data)
+		if err != nil {
+			c.sendError("INVALID_DATA", "Invalid subscribe data format")
+			return
+		}
+		if err := json.Unmarshal(dataBytes, &data); err != nil {
 			c.sendError("INVALID_DATA", "Invalid subscribe data")
 			return
 		}
@@ -149,7 +154,12 @@ func (c *Client) handleFrame(frame *models.WSFrame) {
 
 	case "unsubscribe":
 		var data models.WSUnsubscribeData
-		if err := json.Unmarshal(frame.Data.([]byte), &data); err != nil {
+		dataBytes, err := json.Marshal(frame.Data)
+		if err != nil {
+			c.sendError("INVALID_DATA", "Invalid unsubscribe data format")
+			return
+		}
+		if err := json.Unmarshal(dataBytes, &data); err != nil {
 			c.sendError("INVALID_DATA", "Invalid unsubscribe data")
 			return
 		}
@@ -157,7 +167,11 @@ func (c *Client) handleFrame(frame *models.WSFrame) {
 
 	case "message.send":
 		var data models.WSMessageSendData
-		dataBytes, _ := json.Marshal(frame.Data)
+		dataBytes, err := json.Marshal(frame.Data)
+		if err != nil {
+			c.sendError("INVALID_DATA", "Invalid message data format")
+			return
+		}
 		if err := json.Unmarshal(dataBytes, &data); err != nil {
 			c.sendError("INVALID_DATA", "Invalid message data")
 			return
@@ -185,26 +199,34 @@ func (c *Client) handleFrame(frame *models.WSFrame) {
 
 	case "typing.update":
 		var data models.WSTypingUpdateData
-		dataBytes, _ := json.Marshal(frame.Data)
+		dataBytes, err := json.Marshal(frame.Data)
+		if err != nil {
+			c.sendError("INVALID_DATA", "Invalid typing data format")
+			return
+		}
 		if err := json.Unmarshal(dataBytes, &data); err != nil {
 			c.sendError("INVALID_DATA", "Invalid typing data")
 			return
 		}
 
-		err := c.Hub.messageService.PublishTypingIndicator(data.ConversationID, c.UserID, data.IsTyping)
+		err = c.Hub.messageService.PublishTypingIndicator(data.ConversationID, c.UserID, data.IsTyping)
 		if err != nil {
 			log.Printf("Failed to publish typing indicator: %v", err)
 		}
 
 	case "receipt.read":
 		var data models.WSReceiptReadData
-		dataBytes, _ := json.Marshal(frame.Data)
+		dataBytes, err := json.Marshal(frame.Data)
+		if err != nil {
+			c.sendError("INVALID_DATA", "Invalid receipt data format")
+			return
+		}
 		if err := json.Unmarshal(dataBytes, &data); err != nil {
 			c.sendError("INVALID_DATA", "Invalid receipt data")
 			return
 		}
 
-		err := c.Hub.messageService.MarkMessageAsRead(ctx, data.ConversationID, c.UserID, data.MessageID)
+		err = c.Hub.messageService.MarkMessageAsRead(ctx, data.ConversationID, c.UserID, data.MessageID)
 		if err != nil {
 			log.Printf("Failed to mark message as read: %v", err)
 		}

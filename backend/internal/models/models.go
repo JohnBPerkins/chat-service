@@ -42,6 +42,17 @@ type Message struct {
 	CreatedAt      time.Time `bson:"createdAt" json:"createdAt"`
 }
 
+// MessageWithSender represents a message with populated sender info for API responses
+type MessageWithSender struct {
+	ID             int64     `json:"id"`
+	ConversationID string    `json:"conversationId"`
+	SenderID       string    `json:"senderId"`
+	ClientMsgID    string    `json:"clientMsgId"`
+	Body           string    `json:"body"`
+	CreatedAt      time.Time `json:"createdAt"`
+	Sender         *User     `json:"sender,omitempty"`
+}
+
 // CreateConversationRequest represents the request to create a new conversation
 type CreateConversationRequest struct {
 	Kind    string   `json:"kind"`    // "dm" or "group"
@@ -110,6 +121,7 @@ type WSMessageNewData struct {
 	SenderID       string    `json:"senderId"`
 	Body           string    `json:"body"`
 	CreatedAt      time.Time `json:"createdAt"`
+	Sender         *User     `json:"sender,omitempty"`
 }
 
 type WSTypingUpdateEventData struct {
@@ -131,7 +143,7 @@ type WSErrorData struct {
 
 // Pagination types
 type PaginatedMessagesResponse struct {
-	Messages   []Message `json:"messages"`
-	HasMore    bool      `json:"hasMore"`
-	NextCursor string    `json:"nextCursor,omitempty"`
+	Messages   []MessageWithSender `json:"messages"`
+	HasMore    bool                `json:"hasMore"`
+	NextCursor string              `json:"nextCursor,omitempty"`
 }

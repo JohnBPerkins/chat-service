@@ -14,18 +14,20 @@ import (
 )
 
 type MessageService struct {
-	db   *database.MongoDB
-	nats *nats.NATSConnection
+	db          *database.MongoDB
+	nats        *nats.NATSConnection
+	userService *UserService
 }
 
-func NewMessageService(db *database.MongoDB, natsConn *nats.NATSConnection) *MessageService {
+func NewMessageService(db *database.MongoDB, natsConn *nats.NATSConnection, userService *UserService) *MessageService {
 	return &MessageService{
-		db:   db,
-		nats: natsConn,
+		db:          db,
+		nats:        natsConn,
+		userService: userService,
 	}
 }
 
-func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessageRequest, senderID string) (*models.Message, error) {
+func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessageRequest, senderID string) (*models.MessageWithSender, error) {
 	collection := s.db.DB.Collection("messages")
 
 	// Generate snowflake ID (simplified version)
@@ -56,9 +58,40 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 			if err != nil {
 				return nil, fmt.Errorf("failed to find existing message: %w", err)
 			}
-			return &existingMessage, nil
+
+			// Convert to MessageWithSender and populate sender info
+			messageWithSender := &models.MessageWithSender{
+				ID:             existingMessage.ID,
+				ConversationID: existingMessage.ConversationID,
+				SenderID:       existingMessage.SenderID,
+				ClientMsgID:    existingMessage.ClientMsgID,
+				Body:           existingMessage.Body,
+				CreatedAt:      existingMessage.CreatedAt,
+			}
+
+			// Fetch sender information
+			if sender, err := s.userService.GetUserByID(ctx, existingMessage.SenderID); err == nil {
+				messageWithSender.Sender = sender
+			}
+
+			return messageWithSender, nil
 		}
 		return nil, fmt.Errorf("failed to insert message: %w", err)
+	}
+
+	// Convert to MessageWithSender and populate sender info
+	messageWithSender := &models.MessageWithSender{
+		ID:             message.ID,
+		ConversationID: message.ConversationID,
+		SenderID:       message.SenderID,
+		ClientMsgID:    message.ClientMsgID,
+		Body:           message.Body,
+		CreatedAt:      message.CreatedAt,
+	}
+
+	// Fetch sender information
+	if sender, err := s.userService.GetUserByID(ctx, message.SenderID); err == nil {
+		messageWithSender.Sender = sender
 	}
 
 	// Publish to NATS JetStream
@@ -68,6 +101,7 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 		SenderID:       message.SenderID,
 		Body:           message.Body,
 		CreatedAt:      message.CreatedAt,
+		Sender:         messageWithSender.Sender,
 	}
 
 	err = s.nats.PublishMessage(req.ConversationID, wsMessageData)
@@ -76,7 +110,7 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 		fmt.Printf("Failed to publish message to NATS: %v\n", err)
 	}
 
-	return message, nil
+	return messageWithSender, nil
 }
 
 func (s *MessageService) GetMessages(ctx context.Context, conversationID string, before string, limit int) (*models.PaginatedMessagesResponse, error) {
@@ -123,13 +157,32 @@ func (s *MessageService) GetMessages(ctx context.Context, conversationID string,
 		messages = messages[:limit]
 	}
 
+	// Convert to MessageWithSender and populate sender info
+	messagesWithSender := make([]models.MessageWithSender, len(messages))
+	for i, msg := range messages {
+		messagesWithSender[i] = models.MessageWithSender{
+			ID:             msg.ID,
+			ConversationID: msg.ConversationID,
+			SenderID:       msg.SenderID,
+			ClientMsgID:    msg.ClientMsgID,
+			Body:           msg.Body,
+			CreatedAt:      msg.CreatedAt,
+		}
+
+		// Fetch sender information
+		if sender, err := s.userService.GetUserByID(ctx, msg.SenderID); err == nil {
+			messagesWithSender[i].Sender = sender
+		}
+		// If user fetch fails, sender will be nil and frontend should handle it gracefully
+	}
+
 	var nextCursor string
 	if hasMore && len(messages) > 0 {
 		nextCursor = messages[len(messages)-1].CreatedAt.Format(time.RFC3339)
 	}
 
 	return &models.PaginatedMessagesResponse{
-		Messages:   messages,
+		Messages:   messagesWithSender,
 		HasMore:    hasMore,
 		NextCursor: nextCursor,
 	}, nil

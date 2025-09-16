@@ -247,12 +247,15 @@ export function MessageArea({ conversation, isConnected }: MessageAreaProps) {
             <p className="text-white/50 text-sm">Send the first message to start the conversation</p>
           </div>
         ) : (
-          messages.map((message) => (
+          messages.filter(message => message).map((message) => (
             <div key={message.id} className="flex gap-3 group">
               <img
                 src={message.sender?.avatarUrl || '/default-avatar.svg'}
                 alt={message.sender?.name || 'User'}
                 className="w-10 h-10 rounded-2xl flex-shrink-0"
+                onError={(e) => {
+                  e.currentTarget.src = '/default-avatar.svg'
+                }}
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">

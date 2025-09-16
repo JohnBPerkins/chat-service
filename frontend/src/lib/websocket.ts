@@ -50,8 +50,9 @@ export class ChatWebSocket {
     }
 
     try {
-      // Connect to WebSocket endpoint (no JWT auth needed since we removed it)
-      this.ws = new WebSocket(`${this.wsUrl}/ws`)
+      // Connect to WebSocket endpoint with user ID as query parameter
+      const userId = encodeURIComponent(session.user.email || '')
+      this.ws = new WebSocket(`${this.wsUrl}/ws?userId=${userId}`)
 
       this.ws.onopen = () => {
         console.log('WebSocket connected')
