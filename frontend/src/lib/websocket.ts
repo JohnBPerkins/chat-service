@@ -37,7 +37,7 @@ export class ChatWebSocket {
   private isAuthenticated = false
   private pendingSubscriptions: string[] = []
 
-  constructor(private wsUrl: string = process.env.NEXT_PUBLIC_WS_BASE_URL || 'ws://localhost:8080') {}
+  constructor(private wsUrl: string = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080') {}
 
   async connect(): Promise<void> {
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -45,13 +45,13 @@ export class ChatWebSocket {
     }
 
     const session = await getSession()
-    if (!session?.accessToken) {
-      throw new Error('No authentication token available')
+    if (!session?.user) {
+      throw new Error('No authenticated user')
     }
 
     try {
-      // Use subprotocol for JWT authentication
-      this.ws = new WebSocket(`${this.wsUrl}/ws`, [`bearer`, session.accessToken])
+      // Connect to WebSocket endpoint (no JWT auth needed since we removed it)
+      this.ws = new WebSocket(`${this.wsUrl}/ws`)
 
       this.ws.onopen = () => {
         console.log('WebSocket connected')
