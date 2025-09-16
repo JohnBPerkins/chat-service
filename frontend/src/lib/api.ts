@@ -88,6 +88,13 @@ class ApiClient {
     })
   }
 
+  async deleteConversation(conversationId: string): Promise<void> {
+    const userId = await this.getUserId()
+    await this.request(`/v1/conversations/${conversationId}?userId=${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+    })
+  }
+
   // Message APIs
   async getMessages(
     conversationId: string,

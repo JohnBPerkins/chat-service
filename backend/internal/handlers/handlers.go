@@ -116,6 +116,40 @@ func (h *Handlers) CreateConversation(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(conversation)
 }
 
+func (h *Handlers) DeleteConversation(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		http.Error(w, "User ID required as query parameter", http.StatusBadRequest)
+		return
+	}
+
+	conversationID := chi.URLParam(r, "id")
+	if conversationID == "" {
+		http.Error(w, "Conversation ID is required", http.StatusBadRequest)
+		return
+	}
+
+	err := h.ConversationService.DeleteConversation(r.Context(), conversationID, userID)
+	if err != nil {
+		if err.Error() == "user is not a participant in this conversation" {
+			http.Error(w, "Access denied", http.StatusForbidden)
+			return
+		}
+		if err.Error() == "only admins can delete conversations" {
+			http.Error(w, "Only admins can delete conversations", http.StatusForbidden)
+			return
+		}
+		if err.Error() == "conversation not found" {
+			http.Error(w, "Conversation not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to delete conversation", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handlers) GetMessages(w http.ResponseWriter, r *http.Request) {
 	userID := r.URL.Query().Get("userId")
 	if userID == "" {

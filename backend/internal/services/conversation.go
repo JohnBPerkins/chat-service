@@ -200,6 +200,57 @@ func (s *ConversationService) UpdateLastMessageAt(ctx context.Context, conversat
 	return nil
 }
 
+func (s *ConversationService) DeleteConversation(ctx context.Context, conversationID, userID string) error {
+	// Check if user is a participant and has permission to delete
+	isParticipant, err := s.IsUserParticipant(ctx, conversationID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to check participation: %w", err)
+	}
+	if !isParticipant {
+		return fmt.Errorf("user is not a participant in this conversation")
+	}
+
+	// Check if user is admin (only admins can delete conversations)
+	participantsCollection := s.db.DB.Collection("participants")
+	participantID := fmt.Sprintf("%s:%s", conversationID, userID)
+
+	var participant models.Participant
+	err = participantsCollection.FindOne(ctx, bson.M{"_id": participantID}).Decode(&participant)
+	if err != nil {
+		return fmt.Errorf("failed to find participant: %w", err)
+	}
+
+	if participant.Role != "admin" {
+		return fmt.Errorf("only admins can delete conversations")
+	}
+
+	// Delete all messages in the conversation
+	messagesCollection := s.db.DB.Collection("messages")
+	_, err = messagesCollection.DeleteMany(ctx, bson.M{"conversationId": conversationID})
+	if err != nil {
+		return fmt.Errorf("failed to delete messages: %w", err)
+	}
+
+	// Delete all participants
+	_, err = participantsCollection.DeleteMany(ctx, bson.M{"conversationId": conversationID})
+	if err != nil {
+		return fmt.Errorf("failed to delete participants: %w", err)
+	}
+
+	// Delete the conversation itself
+	conversationsCollection := s.db.DB.Collection("conversations")
+	result, err := conversationsCollection.DeleteOne(ctx, bson.M{"_id": conversationID})
+	if err != nil {
+		return fmt.Errorf("failed to delete conversation: %w", err)
+	}
+
+	if result.DeletedCount == 0 {
+		return fmt.Errorf("conversation not found")
+	}
+
+	return nil
+}
+
 // generateUUID is a placeholder - in production use a proper UUID library
 func generateUUID() string {
 	return fmt.Sprintf("%d", time.Now().UnixNano())

@@ -36,6 +36,7 @@ export function ChatApp() {
           <MessageArea
             conversation={selectedConversation}
             isConnected={isConnected}
+            onConversationDeleted={() => setSelectedConversation(null)}
           />
         ) : (
           <div className="h-full bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 flex items-center justify-center">

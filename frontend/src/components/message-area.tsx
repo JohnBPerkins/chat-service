@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Send, MoreVertical, Loader2, Users } from 'lucide-react'
+import { Send, MoreVertical, Loader2, Users, Trash2 } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
 import { v4 as uuidv4 } from 'uuid'
@@ -18,9 +18,10 @@ import type { Conversation, Message } from '@/types/chat'
 interface MessageAreaProps {
   conversation: Conversation
   isConnected: boolean
+  onConversationDeleted?: () => void
 }
 
-export function MessageArea({ conversation, isConnected }: MessageAreaProps) {
+export function MessageArea({ conversation, isConnected, onConversationDeleted }: MessageAreaProps) {
   const { data: session } = useSession()
   const [messageText, setMessageText] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -82,6 +83,39 @@ export function MessageArea({ conversation, isConnected }: MessageAreaProps) {
     },
   })
 
+  const deleteConversationMutation = useMutation({
+    mutationFn: () => apiClient.deleteConversation(conversation.id),
+    onMutate: async () => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['conversations'] })
+
+      // Snapshot the previous value
+      const previousConversations = queryClient.getQueryData(['conversations'])
+
+      // Optimistically update to the new value
+      queryClient.setQueryData(['conversations'], (old: any) => {
+        if (Array.isArray(old)) {
+          return old.filter(conv => conv.id !== conversation.id)
+        }
+        return old
+      })
+
+      // Immediately clear the selected conversation
+      onConversationDeleted?.()
+
+      // Return a context object with the snapshotted value
+      return { previousConversations }
+    },
+    onError: (err, variables, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      queryClient.setQueryData(['conversations'], context?.previousConversations)
+    },
+    onSettled: () => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
+    },
+  })
+
   // Subscribe to conversation on mount
   useEffect(() => {
     subscribe(conversation.id)
@@ -136,6 +170,12 @@ export function MessageArea({ conversation, isConnected }: MessageAreaProps) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage(e)
+    }
+  }
+
+  const handleDeleteConversation = () => {
+    if (window.confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
+      deleteConversationMutation.mutate()
     }
   }
 
@@ -211,8 +251,17 @@ export function MessageArea({ conversation, isConnected }: MessageAreaProps) {
               </div>
             </div>
           </div>
-          <button className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300">
-            <MoreVertical className="w-5 h-5" />
+          <button
+            onClick={handleDeleteConversation}
+            disabled={deleteConversationMutation.isPending}
+            className="p-2 text-white/60 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Delete conversation"
+          >
+            {deleteConversationMutation.isPending ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Trash2 className="w-5 h-5" />
+            )}
           </button>
         </div>
       </div>

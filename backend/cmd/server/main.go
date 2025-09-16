@@ -88,6 +88,7 @@ func main() {
 		// Conversation routes
 		r.Get("/conversations", handlers.GetConversations)
 		r.Post("/conversations", handlers.CreateConversation)
+		r.Delete("/conversations/{id}", handlers.DeleteConversation)
 		r.Get("/conversations/{id}/messages", handlers.GetMessages)
 
 		// Message routes
