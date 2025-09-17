@@ -13,7 +13,7 @@ export function ChatApp() {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
   const { isConnected, connectionError } = useWebSocket()
 
-  const isAuthenticated = status === 'authenticated' && session
+  const isAuthenticated = status === 'authenticated' && !!session
 
   return (
     <div className="h-full flex gap-6">

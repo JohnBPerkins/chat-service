@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useSession, signOut } from 'next-auth/react'
-import { MessageCircle, Users, Settings, LogOut, Plus, WifiOff } from 'lucide-react'
+import { MessageCircle, Settings, LogOut, Plus, WifiOff } from 'lucide-react'
 import { ConversationList } from './conversation-list'
 import { MessageView } from './message-view'
 import { NewConversationModal } from './new-conversation-modal'

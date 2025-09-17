@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Send, MoreVertical, Loader2 } from 'lucide-react'
+import { Send, Loader2 } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
 import { v4 as uuidv4 } from 'uuid'
@@ -13,7 +13,7 @@ import { useReadReceipts } from '@/hooks/use-read-receipts'
 import { usePaginatedMessages } from '@/hooks/use-paginated-messages'
 import { useIntersectionObserver } from '@/hooks/use-intersection-observer'
 import { TypingIndicator } from './typing-indicator'
-import type { Conversation, Message } from '@/types/chat'
+import type { Conversation } from '@/types/chat'
 
 interface MessageViewProps {
   conversation: Conversation
@@ -193,9 +193,6 @@ export function MessageView({ conversation }: MessageViewProps) {
               {conversation.participants?.length || 0} participants
             </p>
           </div>
-          <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
-            <MoreVertical className="w-5 h-5" />
-          </button>
         </div>
       </div>
 

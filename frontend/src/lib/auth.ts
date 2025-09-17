@@ -1,5 +1,4 @@
 import { NextAuthOptions } from 'next-auth'
-import { JWT } from 'next-auth/jwt'
 import GithubProvider from 'next-auth/providers/github'
 import GoogleProvider from 'next-auth/providers/google'
 
@@ -67,7 +66,7 @@ export const authOptions: NextAuthOptions = {
   },
 }
 
-async function upsertUser(user: any) {
+async function upsertUser(user: { email?: string | null; name?: string | null; image?: string | null }) {
   try {
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'}/v1/users/me`, {
       method: 'PUT',

@@ -17,7 +17,7 @@ interface UseTypingOptions {
 export function useTyping({ conversationId, currentUserId, typingTimeout = 3000 }: UseTypingOptions) {
   const [typingUsers, setTypingUsers] = useState<Map<string, TypingUser>>(new Map())
   const [isTyping, setIsTyping] = useState(false)
-  const typingTimeoutRef = useRef<NodeJS.Timeout>()
+  const typingTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const lastTypingTimeRef = useRef<number>(0)
 
   const { updateTyping } = useWebSocket({
@@ -84,6 +84,7 @@ export function useTyping({ conversationId, currentUserId, typingTimeout = 3000 
     typingTimeoutRef.current = setTimeout(() => {
       stopTyping()
     }, typingTimeout)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, updateTyping, typingTimeout])
 
   const stopTyping = useCallback(() => {

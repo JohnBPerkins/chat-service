@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Send, MoreVertical, Loader2, Users, Trash2 } from 'lucide-react'
+import { Send, Loader2, Users, Trash2 } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
 import { v4 as uuidv4 } from 'uuid'
@@ -13,7 +13,7 @@ import { useReadReceipts } from '@/hooks/use-read-receipts'
 import { usePaginatedMessages } from '@/hooks/use-paginated-messages'
 import { useIntersectionObserver } from '@/hooks/use-intersection-observer'
 import { TypingIndicator } from './typing-indicator'
-import type { Conversation, Message } from '@/types/chat'
+import type { Conversation } from '@/types/chat'
 
 interface MessageAreaProps {
   conversation: Conversation
@@ -93,7 +93,7 @@ export function MessageArea({ conversation, isConnected, onConversationDeleted }
       const previousConversations = queryClient.getQueryData(['conversations'])
 
       // Optimistically update to the new value
-      queryClient.setQueryData(['conversations'], (old: any) => {
+      queryClient.setQueryData(['conversations'], (old: Conversation[] | undefined) => {
         if (Array.isArray(old)) {
           return old.filter(conv => conv.id !== conversation.id)
         }

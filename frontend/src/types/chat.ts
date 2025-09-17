@@ -49,7 +49,7 @@ export interface SendMessageRequest {
 }
 
 // WebSocket frame types
-export interface WSFrame<T = any> {
+export interface WSFrame<T = unknown> {
   type: string
   ts: number
   data: T
