@@ -1,8 +1,7 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": ".next",
-  "installCommand": "npm ci",
+  "buildCommand": "cd frontend && npm run build",
+  "outputDirectory": "frontend/.next",
+  "installCommand": "cd frontend && npm ci",
   "framework": "nextjs",
-  "rootDirectory": "frontend",
   "ignoreCommand": "bash -c 'if [[ \"$VERCEL_GIT_COMMIT_REF\" != \"main\" && \"$VERCEL_GIT_COMMIT_REF\" != \"master\" ]]; then exit 0; fi; git diff HEAD^ HEAD --name-only | grep -q \"^frontend/\" || exit 1'"
 }
