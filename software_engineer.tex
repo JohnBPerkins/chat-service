@@ -1,0 +1,208 @@
+%-------------------------
+% Resume in Latex
+% Author : Shubhi Rani
+% License : MIT
+%------------------------
+
+\documentclass[letterpaper,10pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage[margin=0.5in]{geometry}
+\usepackage[pdftex]{hyperref}
+
+\hypersetup{
+    colorlinks = true,
+    linkcolor = blue,
+    urlcolor = blue
+}
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\setlength{\footskip}{4pt}
+
+\urlstyle{rm}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-3pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[2]{%
+  \item[\textbullet]\small{%
+    \textbf{#1}: #2 \vspace{-2pt}%
+  }%
+}
+
+\newcommand{\resumeItemWithoutTitle}[1]{%
+  \item[$\bullet$]\small{#1 \vspace{-2pt}}%
+}
+
+\newcommand{\resumeSubheading}[4]{%
+  \item[]%  ← keeps list structure, shows no bullet
+  \vspace{-1pt}%
+  \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}%
+    \textbf{#1} & #2 \\%
+    \textit{\small #3} & \textit{\small #4} \\%
+  \end{tabular*}%
+  \vspace{-5pt}%
+}
+
+\newcommand{\resumeHeading}[2]{
+  \vspace{-1pt}\item[]
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+    \end{tabular*}\vspace{-5pt}
+}
+
+\newcommand{\resumeSubItem}[2]{%
+  \item[]\small{%
+    \textbf{#1}: #2 \vspace{-2pt}%
+  }%
+  \vspace{-4pt}%
+}
+
+\renewcommand{\labelitemii}{$\circ$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=*]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+%-------------------------------------------
+%%%%%%  CV STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+%----------HEADING-----------------
+
+\begin{tabular*}{\textwidth}{@{}l@{\extracolsep{\fill}}r@{}}
+    \textbf{\LARGE John Perkins} &
+    \href{mailto:john.mc.perkins@gmail.com}{john.mc.perkins@gmail.com} \;•\;
+    \href{https://www.linkedin.com/in/johnbperkins/}{linkedin.com/in/johnbperkins} \;•\;
+    480-395-9777 \\
+\end{tabular*}
+
+\begin{tabular*}{\textwidth}{@{}l@{\extracolsep{\fill}}r@{}}
+    \textit{Backend Software Engineer · Distributed Systems } &
+    \href{https://github.com/johnbperkins}{github.com/johnbperkins}
+\end{tabular*}
+
+%-----------EDUCATION-----------------
+\section{Education}
+\resumeSubHeadingListStart
+    \resumeHeading
+      {M.S. Computer Science - Arizona State University - 3.8 GPA}{May 2025}
+    
+    \resumeHeading
+      {B.S. Computer Science - Arizona State University - 3.47 GPA}{Dec 2023}
+\resumeSubHeadingListEnd
+
+%--------PROGRAMMING SKILLS------------
+\section{Skills}
+\resumeSubHeadingListStart
+    \resumeSubItem{Languages}{Python, Go, C++, Java, Bash, SQL}
+    \resumeSubItem{Frameworks / Infra}{FastAPI, gRPC, REST, WebSockets, Docker, Kubernetes, Terraform, GitHub Actions}
+    \resumeSubItem{Cloud / DevOps}{AWS (ECS, ECR, SQS, RDS, ElastiCache, S3, Cognito, IAM), CI/CD, Git}
+    \resumeSubItem{Data / Reliability}{Redis, PostgreSQL, MongoDB, Prometheus, Grafana, k6, Postman}
+\resumeSubHeadingListEnd
+
+%-----------EXPERIENCE-----------------
+\section{Experience}
+\resumeSubHeadingListStart
+    \resumeSubheading
+        {Researcher}{Tempe, AZ}
+        {School of Computing and Augmented Intelligence, ASU}{August 2023 - May 2025}
+        \resumeItemListStart
+            \resumeItem{Adversarial Attacks on Implicit Neural Representation Networks}
+            {
+            \begin{itemize}[label=-]
+                \item Engineered adversarial-attack modules for INR classifier pipelines, identifying and patching key vulnerabilities.
+                \item Built a gradient-approximating \textbf{surrogate model} to craft image-space attacks and benchmark defenses.
+                \item Built a \textbf{Slurm/Bash} hyperparameter-tuning pipeline for \textbf{70+ parallel GPU jobs}.
+    
+            \end{itemize}
+            }            
+        \resumeItemListEnd    
+
+    \resumeSubheading
+    {Software Engineer \normalfont{\textit{(Intern)}}}{Tempe, AZ}
+    {Choice Hotels International}{May 2023 - December 2023}
+    \resumeItemListStart
+        \resumeItem{Cross-Platform Ticket Synchronization between ServiceNow and Jira}
+        {
+        \begin{itemize}[label=-]
+            \item Engineered an \textbf{integration system} to synchronize \textbf{300 support tickets/day} between \textbf{ServiceNow} and \textbf{Jira}.
+            \item Used \textbf{Webhooks} and \textbf{JavaScript} to enable automatic bidirectional information flow in real time.
+            \item Streamlined workflows to improve team collaboration, reduce errors, and dropped resolution times from \textbf{weeks to days}.
+        \end{itemize}
+        }
+    \resumeItemListEnd
+
+    \resumeSubheading
+    {Software Engineer \normalfont{\textit{(Intern)}}}{Remote}
+    {Automationtechies}{May 2022 -  August 2022}
+        \resumeItemListStart
+            \resumeItem{Commission Tracking System}
+            {
+            \begin{itemize}[label=-]
+                \item Built a \textbf{Node.js ETL service} that ingests \textbf{500 rows/day} via \textbf{REST APIs}, aggregates them, and generates cloud reports; load-tested to sustain \textbf{\textgreater{}50k rows/day} for future growth.
+                \item Automated reporting, cutting generation time by \textbf{90\%}.
+            \end{itemize} 
+            }
+        \resumeItemListEnd
+\resumeSubHeadingListEnd
+
+%-----------PROJECTS-----------------
+\section{Projects}
+\resumeSubHeadingListStart  
+    \resumeHeading{\href{https://github.com/johnbperkins/chat-service}{Real-Time Chat Service}}{Go · NATS JetStream · MongoDB}
+    \resumeItemListStart
+        \resumeItemWithoutTitle{Built a horizontally scalable real-time chat backend using \textbf{Go WebSockets} and \textbf{NATS JetStream} for durable message distribution, supporting 1:1 and group conversations with JWT authentication.}
+        \resumeItemWithoutTitle{Architected stateless backend nodes with \textbf{MongoDB} persistence and \textbf{Chi router}, enabling seamless horizontal scaling for concurrent user sessions.}
+        \resumeItemWithoutTitle{Implemented WebSocket protocol with real-time typing indicators, read receipts, and cursor-based message pagination APIs.}
+    \resumeItemListEnd
+
+    \resumeHeading{\href{https://urlshortfront.vercel.app/}{URL Shortener}}{Go · gRPC · AWS · Redis · Docker · PostgreSQL}
+    \resumeItemListStart
+        \resumeItemWithoutTitle{Designed a high-throughput URL-shortening service with \textbf{gRPC}, \textbf{Redis} cache, and \textbf{PostgreSQL} storage; containerized with Docker.}
+        \resumeItemWithoutTitle{Load-tested to \textbf{5k req/s} at \textless{}150 ms p95 latency while maintaining \textbf{99.99\% success rate}.}
+        \resumeItemWithoutTitle{Implemented CI/CD with \textbf{GitHub Actions} and \textbf{Terraform}, enabling one-click rollout to \textbf{AWS}.}
+    \resumeItemListEnd
+
+    \resumeHeading{Browser Automation Agent}{Python · FastAPI · AWS · Docker · PostgreSQL}
+    \resumeItemListStart
+        \resumeItemWithoutTitle{Deployed \textbf{FastAPI} based \textbf{Docker} containers that orchestrate an AI-powered browser agent for dynamic web interaction.}
+        \resumeItemWithoutTitle{Implemented secure user authentication with \textbf{Supabase} and \textbf{PostgreSQL} for persistent configuration and session data.}
+    \resumeItemListEnd
+
+    \resumeHeading{High-Volume  Jobs Scraper}{Python · Docker · PostgreSQL}
+    \resumeItemListStart
+        \resumeItemWithoutTitle{Engineered a \textbf{Playwright}-based scraper that harvested \textbf{100k listings/day} from a single IP, using adaptive throttling and rotating user-agent fingerprints to bypass rate limits and detection.}
+        \resumeItemWithoutTitle{Containerized the pipeline with \textbf{Docker} and automated storage of structured data in \textbf{PostgreSQL} for downstream analytics.}
+    \resumeItemListEnd
+
+    % \resumeHeading{Column-Oriented DBMS}{Java, MiniBase}
+    % \resumeItemListStart
+    %     \resumeItemWithoutTitle{Enhanced MiniBase DBMS with column-oriented storage, focusing on \textbf{bitmap indexing} for efficient data retrieval.}
+    %     \resumeItemWithoutTitle{Designed and implemented \textbf{standard and run-length encoded bitmap packages}, enabling dynamic operations like insertions, deletions, and retrievals.}
+    %     \resumeItemWithoutTitle{Boosted query performance and storage efficiency in a columnar DBMS.}
+    % \resumeItemListEnd
+\resumeSubHeadingListEnd
+
+\end{document}
