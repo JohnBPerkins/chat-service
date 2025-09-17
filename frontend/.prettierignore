@@ -1,0 +1,30 @@
+# Build outputs
+.next/
+out/
+build/
+dist/
+
+# Dependencies
+node_modules/
+
+# Environment files
+.env*
+
+# Generated files
+next-env.d.ts
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# Coverage
+coverage/
+
+# Config files that might have specific formatting
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Documentation that might have specific formatting
+README.md
+CHANGELOG.md

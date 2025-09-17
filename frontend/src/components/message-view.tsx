@@ -27,28 +27,17 @@ export function MessageView({ conversation }: MessageViewProps) {
 
   const { subscribe, unsubscribe, sendMessage } = useWebSocket()
 
-  const {
-    typingText,
-    isAnyoneTyping,
-    startTyping,
-    stopTyping
-  } = useTyping({
+  const { typingText, isAnyoneTyping, startTyping, stopTyping } = useTyping({
     conversationId: conversation.id,
     currentUserId: session?.user.id || '',
   })
 
   // Use paginated messages with infinite scrolling
-  const {
-    messages,
-    hasMore,
-    isLoadingInitial,
-    isLoadingMore,
-    loadMoreMessages,
-    error,
-  } = usePaginatedMessages({
-    conversationId: conversation.id,
-    pageSize: 50,
-  })
+  const { messages, hasMore, isLoadingInitial, isLoadingMore, loadMoreMessages, error } =
+    usePaginatedMessages({
+      conversationId: conversation.id,
+      pageSize: 50,
+    })
 
   // Handle read receipts
   useReadReceipts({
@@ -111,7 +100,7 @@ export function MessageView({ conversation }: MessageViewProps) {
       sendMessage(conversation.id, clientMsgId, body)
       setMessageText('')
       stopTyping()
-    } catch (error) {
+    } catch {
       // Fallback to HTTP API
       sendMessageMutation.mutate({
         conversationId: conversation.id,
@@ -140,19 +129,19 @@ export function MessageView({ conversation }: MessageViewProps) {
 
   if (isLoadingInitial) {
     return (
-      <div className="flex-1 flex flex-col">
-        <div className="p-4 border-b border-gray-200">
+      <div className="flex flex-1 flex-col">
+        <div className="border-b border-gray-200 p-4">
           <div className="animate-pulse">
-            <div className="h-6 bg-gray-200 rounded w-1/3"></div>
+            <div className="h-6 w-1/3 rounded bg-gray-200"></div>
           </div>
         </div>
-        <div className="flex-1 p-4 space-y-4">
+        <div className="flex-1 space-y-4 p-4">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="animate-pulse flex gap-3">
-              <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+            <div key={i} className="flex animate-pulse gap-3">
+              <div className="h-8 w-8 rounded-full bg-gray-200"></div>
               <div className="flex-1">
-                <div className="h-4 bg-gray-200 rounded mb-2 w-1/4"></div>
-                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                <div className="mb-2 h-4 w-1/4 rounded bg-gray-200"></div>
+                <div className="h-4 w-3/4 rounded bg-gray-200"></div>
               </div>
             </div>
           ))}
@@ -163,11 +152,15 @@ export function MessageView({ conversation }: MessageViewProps) {
 
   if (error) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
           <p className="text-sm text-red-600">Failed to load messages</p>
           <button
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['messages', conversation.id, 'paginated'] })}
+            onClick={() =>
+              queryClient.invalidateQueries({
+                queryKey: ['messages', conversation.id, 'paginated'],
+              })
+            }
             className="mt-2 text-sm text-blue-600 hover:text-blue-700"
           >
             Try again
@@ -180,14 +173,14 @@ export function MessageView({ conversation }: MessageViewProps) {
   // messages variable is already defined from usePaginatedMessages
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex flex-1 flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 bg-white">
+      <div className="border-b border-gray-200 bg-white p-4">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
               {conversation.title ||
-               (conversation.kind === 'group' ? 'Group Chat' : 'Direct Message')}
+                (conversation.kind === 'group' ? 'Group Chat' : 'Direct Message')}
             </h2>
             <p className="text-sm text-gray-500">
               {conversation.participants?.length || 0} participants
@@ -197,13 +190,13 @@ export function MessageView({ conversation }: MessageViewProps) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {/* Load more trigger (at the top for reverse chronological loading) */}
         {hasMore && (
           <div ref={targetRef} className="flex justify-center py-4">
             {isLoadingMore ? (
               <div className="flex items-center gap-2 text-gray-500">
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 <span className="text-sm">Loading more messages...</span>
               </div>
             ) : (
@@ -218,20 +211,20 @@ export function MessageView({ conversation }: MessageViewProps) {
         )}
 
         {messages.length === 0 && !isLoadingInitial ? (
-          <div className="text-center text-gray-500 py-8">
+          <div className="py-8 text-center text-gray-500">
             <p>No messages yet</p>
             <p className="text-sm">Send the first message to start the conversation</p>
           </div>
         ) : (
-          messages.map((message) => (
+          messages.map(message => (
             <div key={message.id} className="flex gap-3">
               <img
                 src={message.sender?.avatarUrl || '/default-avatar.svg'}
                 alt={message.sender?.name || 'User'}
-                className="w-8 h-8 rounded-full flex-shrink-0"
+                className="h-8 w-8 flex-shrink-0 rounded-full"
               />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
+              <div className="min-w-0 flex-1">
+                <div className="mb-1 flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-900">
                     {message.sender?.name || 'Unknown User'}
                   </span>
@@ -239,7 +232,7 @@ export function MessageView({ conversation }: MessageViewProps) {
                     {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
                   </span>
                 </div>
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">{message.body}</p>
+                <p className="text-sm whitespace-pre-wrap text-gray-700">{message.body}</p>
               </div>
             </div>
           ))
@@ -252,7 +245,7 @@ export function MessageView({ conversation }: MessageViewProps) {
       </div>
 
       {/* Message Input */}
-      <div className="p-4 border-t border-gray-200 bg-white">
+      <div className="border-t border-gray-200 bg-white p-4">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <div className="flex-1">
             <textarea
@@ -261,10 +254,10 @@ export function MessageView({ conversation }: MessageViewProps) {
               onKeyPress={handleKeyPress}
               onBlur={stopTyping}
               placeholder="Type a message..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
               rows={1}
               style={{ minHeight: '40px', maxHeight: '120px' }}
-              onInput={(e) => {
+              onInput={e => {
                 const target = e.target as HTMLTextAreaElement
                 target.style.height = 'auto'
                 target.style.height = target.scrollHeight + 'px'
@@ -274,9 +267,9 @@ export function MessageView({ conversation }: MessageViewProps) {
           <button
             type="submit"
             disabled={!messageText.trim() || sendMessageMutation.isPending}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Send className="w-4 h-4" />
+            <Send className="h-4 w-4" />
           </button>
         </form>
       </div>

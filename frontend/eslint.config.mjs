@@ -18,7 +18,36 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      "vitest.config.ts",
+      "coverage/**",
+      "*.config.*",
     ],
+  },
+  {
+    rules: {
+      // Stricter rules to catch issues early
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          ignoreRestSiblings: true
+        }
+      ],
+      "@typescript-eslint/no-explicit-any": "warn",
+
+      // React specific rules
+      "react/jsx-uses-react": "off", // Not needed in React 17+
+      "react/react-in-jsx-scope": "off", // Not needed in React 17+
+
+      // Next.js specific rules
+      "@next/next/no-img-element": "warn",
+
+      // General code quality
+      "no-console": ["warn", { allow: ["warn", "error"] }],
+      "prefer-const": "error",
+      "no-var": "error",
+    },
   },
 ];
 

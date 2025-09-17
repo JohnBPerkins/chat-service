@@ -21,7 +21,11 @@ interface MessageAreaProps {
   onConversationDeleted?: () => void
 }
 
-export function MessageArea({ conversation, isConnected, onConversationDeleted }: MessageAreaProps) {
+export function MessageArea({
+  conversation,
+  isConnected,
+  onConversationDeleted,
+}: MessageAreaProps) {
   const { data: session } = useSession()
   const [messageText, setMessageText] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -29,28 +33,17 @@ export function MessageArea({ conversation, isConnected, onConversationDeleted }
 
   const { subscribe, unsubscribe, sendMessage } = useWebSocket()
 
-  const {
-    typingText,
-    isAnyoneTyping,
-    startTyping,
-    stopTyping
-  } = useTyping({
+  const { typingText, isAnyoneTyping, startTyping, stopTyping } = useTyping({
     conversationId: conversation.id,
     currentUserId: session?.user.id || '',
   })
 
   // Use paginated messages with infinite scrolling
-  const {
-    messages,
-    hasMore,
-    isLoadingInitial,
-    isLoadingMore,
-    loadMoreMessages,
-    error,
-  } = usePaginatedMessages({
-    conversationId: conversation.id,
-    pageSize: 50,
-  })
+  const { messages, hasMore, isLoadingInitial, isLoadingMore, loadMoreMessages, error } =
+    usePaginatedMessages({
+      conversationId: conversation.id,
+      pageSize: 50,
+    })
 
   // Handle read receipts
   useReadReceipts({
@@ -146,7 +139,7 @@ export function MessageArea({ conversation, isConnected, onConversationDeleted }
       sendMessage(conversation.id, clientMsgId, body)
       setMessageText('')
       stopTyping()
-    } catch (error) {
+    } catch {
       // Fallback to HTTP API
       sendMessageMutation.mutate({
         conversationId: conversation.id,
@@ -174,27 +167,31 @@ export function MessageArea({ conversation, isConnected, onConversationDeleted }
   }
 
   const handleDeleteConversation = () => {
-    if (window.confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
+    if (
+      window.confirm(
+        'Are you sure you want to delete this conversation? This action cannot be undone.'
+      )
+    ) {
       deleteConversationMutation.mutate()
     }
   }
 
   if (isLoadingInitial) {
     return (
-      <div className="h-full bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 flex flex-col shadow-2xl">
-        <div className="p-6 border-b border-white/10">
+      <div className="flex h-full flex-col rounded-2xl border border-white/20 bg-white/10 shadow-2xl backdrop-blur-xl">
+        <div className="border-b border-white/10 p-6">
           <div className="animate-pulse">
-            <div className="h-6 bg-white/10 rounded w-1/3 mb-2"></div>
-            <div className="h-4 bg-white/10 rounded w-1/5"></div>
+            <div className="mb-2 h-6 w-1/3 rounded bg-white/10"></div>
+            <div className="h-4 w-1/5 rounded bg-white/10"></div>
           </div>
         </div>
-        <div className="flex-1 p-6 space-y-4">
+        <div className="flex-1 space-y-4 p-6">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="animate-pulse flex gap-3">
-              <div className="w-10 h-10 bg-white/10 rounded-2xl"></div>
+            <div key={i} className="flex animate-pulse gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-white/10"></div>
               <div className="flex-1">
-                <div className="h-4 bg-white/10 rounded mb-2 w-1/4"></div>
-                <div className="h-4 bg-white/10 rounded w-3/4"></div>
+                <div className="mb-2 h-4 w-1/4 rounded bg-white/10"></div>
+                <div className="h-4 w-3/4 rounded bg-white/10"></div>
               </div>
             </div>
           ))}
@@ -205,15 +202,19 @@ export function MessageArea({ conversation, isConnected, onConversationDeleted }
 
   if (error) {
     return (
-      <div className="h-full bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 flex items-center justify-center shadow-2xl">
+      <div className="flex h-full items-center justify-center rounded-2xl border border-white/20 bg-white/10 shadow-2xl backdrop-blur-xl">
         <div className="text-center">
-          <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-red-400 text-2xl">⚠️</span>
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/20">
+            <span className="text-2xl text-red-400">⚠️</span>
           </div>
-          <p className="text-red-300 mb-4">Failed to load messages</p>
+          <p className="mb-4 text-red-300">Failed to load messages</p>
           <button
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['messages', conversation.id, 'paginated'] })}
-            className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-all duration-300 hover:scale-105"
+            onClick={() =>
+              queryClient.invalidateQueries({
+                queryKey: ['messages', conversation.id, 'paginated'],
+              })
+            }
+            className="rounded-xl bg-blue-500 px-6 py-3 text-white transition-all duration-300 hover:scale-105 hover:bg-blue-600"
           >
             Try again
           </button>
@@ -223,22 +224,24 @@ export function MessageArea({ conversation, isConnected, onConversationDeleted }
   }
 
   return (
-    <div className="h-full bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 flex flex-col shadow-2xl">
+    <div className="flex h-full flex-col rounded-2xl border border-white/20 bg-white/10 shadow-2xl backdrop-blur-xl">
       {/* Header */}
-      <div className="p-6 border-b border-white/10">
+      <div className="border-b border-white/10 p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-              conversation.kind === 'group'
-                ? 'bg-gradient-to-r from-blue-500 to-purple-500'
-                : 'bg-white/10'
-            }`}>
-              <Users className="w-6 h-6 text-white" />
+            <div
+              className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+                conversation.kind === 'group'
+                  ? 'bg-gradient-to-r from-blue-500 to-purple-500'
+                  : 'bg-white/10'
+              }`}
+            >
+              <Users className="h-6 w-6 text-white" />
             </div>
             <div>
               <h2 className="text-xl font-semibold text-white">
                 {conversation.title ||
-                 (conversation.kind === 'group' ? 'Group Chat' : 'Direct Message')}
+                  (conversation.kind === 'group' ? 'Group Chat' : 'Direct Message')}
               </h2>
               <div className="flex items-center gap-2 text-sm text-white/60">
                 <span>{conversation.participants?.length || 0} participants</span>
@@ -254,26 +257,26 @@ export function MessageArea({ conversation, isConnected, onConversationDeleted }
           <button
             onClick={handleDeleteConversation}
             disabled={deleteConversationMutation.isPending}
-            className="p-2 text-white/60 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-xl p-2 text-white/60 transition-all duration-300 hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-50"
             title="Delete conversation"
           >
             {deleteConversationMutation.isPending ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
-              <Trash2 className="w-5 h-5" />
+              <Trash2 className="h-5 w-5" />
             )}
           </button>
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex-1 space-y-4 overflow-y-auto p-6">
         {/* Load more trigger */}
         {hasMore && (
           <div ref={targetRef} className="flex justify-center py-4">
             {isLoadingMore ? (
               <div className="flex items-center gap-2 text-white/60">
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 <span className="text-sm">Loading more messages...</span>
               </div>
             ) : (
@@ -288,39 +291,43 @@ export function MessageArea({ conversation, isConnected, onConversationDeleted }
         )}
 
         {messages.length === 0 && !isLoadingInitial ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-white/10 rounded-3xl flex items-center justify-center mx-auto mb-4">
+          <div className="py-12 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-white/10">
               <span className="text-2xl">💬</span>
             </div>
-            <p className="text-white/70 mb-2">No messages yet</p>
-            <p className="text-white/50 text-sm">Send the first message to start the conversation</p>
+            <p className="mb-2 text-white/70">No messages yet</p>
+            <p className="text-sm text-white/50">
+              Send the first message to start the conversation
+            </p>
           </div>
         ) : (
-          messages.filter(message => message).map((message) => (
-            <div key={message.id} className="flex gap-3 group">
-              <img
-                src={message.sender?.avatarUrl || '/default-avatar.svg'}
-                alt={message.sender?.name || 'User'}
-                className="w-10 h-10 rounded-2xl flex-shrink-0"
-                onError={(e) => {
-                  e.currentTarget.src = '/default-avatar.svg'
-                }}
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-medium text-white">
-                    {message.sender?.name || 'Unknown User'}
-                  </span>
-                  <span className="text-xs text-white/50">
-                    {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
-                  </span>
-                </div>
-                <div className="bg-white/5 backdrop-blur-sm rounded-2xl rounded-tl-lg p-4 border border-white/10">
-                  <p className="text-white/90 whitespace-pre-wrap">{message.body}</p>
+          messages
+            .filter(message => message)
+            .map(message => (
+              <div key={message.id} className="group flex gap-3">
+                <img
+                  src={message.sender?.avatarUrl || '/default-avatar.svg'}
+                  alt={message.sender?.name || 'User'}
+                  className="h-10 w-10 flex-shrink-0 rounded-2xl"
+                  onError={e => {
+                    e.currentTarget.src = '/default-avatar.svg'
+                  }}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="text-sm font-medium text-white">
+                      {message.sender?.name || 'Unknown User'}
+                    </span>
+                    <span className="text-xs text-white/50">
+                      {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+                    </span>
+                  </div>
+                  <div className="rounded-2xl rounded-tl-lg border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+                    <p className="whitespace-pre-wrap text-white/90">{message.body}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            ))
         )}
 
         {/* Typing Indicator */}
@@ -330,7 +337,7 @@ export function MessageArea({ conversation, isConnected, onConversationDeleted }
       </div>
 
       {/* Message Input */}
-      <div className="p-6 border-t border-white/10">
+      <div className="border-t border-white/10 p-6">
         <form onSubmit={handleSendMessage} className="flex gap-3">
           <div className="flex-1">
             <textarea
@@ -339,10 +346,10 @@ export function MessageArea({ conversation, isConnected, onConversationDeleted }
               onKeyPress={handleKeyPress}
               onBlur={stopTyping}
               placeholder="Type a message..."
-              className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/50 resize-none transition-all duration-300 focus:outline-none focus:border-blue-400 focus:bg-white/15 focus:shadow-lg focus:scale-[1.02]"
+              className="w-full resize-none rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-white placeholder-white/50 backdrop-blur-sm transition-all duration-300 focus:scale-[1.02] focus:border-blue-400 focus:bg-white/15 focus:shadow-lg focus:outline-none"
               rows={1}
               style={{ minHeight: '48px', maxHeight: '120px' }}
-              onInput={(e) => {
+              onInput={e => {
                 const target = e.target as HTMLTextAreaElement
                 target.style.height = 'auto'
                 target.style.height = target.scrollHeight + 'px'
@@ -352,12 +359,12 @@ export function MessageArea({ conversation, isConnected, onConversationDeleted }
           <button
             type="submit"
             disabled={!messageText.trim() || sendMessageMutation.isPending}
-            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl font-medium transition-all duration-300 hover:shadow-lg hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2"
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-3 font-medium text-white transition-all duration-300 hover:scale-105 hover:from-blue-600 hover:to-purple-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
           >
             {sendMessageMutation.isPending ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
-              <Send className="w-5 h-5" />
+              <Send className="h-5 w-5" />
             )}
           </button>
         </form>
