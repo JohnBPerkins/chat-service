@@ -1,6 +1,9 @@
 'use client'
 
 import { getProviders, signIn, getSession } from 'next-auth/react'
+
+// Force dynamic rendering for this page
+export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Github, LogIn } from 'lucide-react'

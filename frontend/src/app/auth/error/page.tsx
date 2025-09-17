@@ -1,6 +1,9 @@
 'use client'
 
 import { useSearchParams } from 'next/navigation'
+
+// Force dynamic rendering for this page
+export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { AlertCircle, ArrowLeft } from 'lucide-react'
 
