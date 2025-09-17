@@ -6,16 +6,12 @@
     "build": "cd frontend && npm run build",
     "dev": "cd frontend && npm run dev",
     "start": "cd frontend && npm start",
-    "lint": "cd frontend && npm run lint",
-    "prepare": "husky"
+    "lint": "cd frontend && npm run lint"
   },
   "workspaces": [
     "frontend"
   ],
   "dependencies": {
     "next": "^15.0.3"
-  },
-  "devDependencies": {
-    "husky": "^9.1.7"
   }
 }
