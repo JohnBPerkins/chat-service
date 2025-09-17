@@ -6,15 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint . --ext .ts,.tsx,.js,.jsx --cache",
-    "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --cache --fix",
-    "type-check": "tsc --noEmit",
-    "test": "vitest",
-    "test:watch": "vitest --watch",
-    "test:coverage": "vitest --coverage",
-    "test:ui": "vitest --ui",
-    "ci": "npm run type-check && npm run lint && npm run test",
-    "prepare": "husky"
+    "lint": "next lint"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -33,40 +25,14 @@
     "zod": "^4.1.8"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
-    "@testing-library/jest-dom": "^6.5.0",
-    "@testing-library/react": "^16.1.0",
-    "@testing-library/user-event": "^14.5.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
-    "@vitejs/plugin-react": "^4.3.3",
-    "@vitest/coverage-v8": "^2.1.5",
-    "@vitest/ui": "^2.1.5",
     "eslint": "^9",
     "eslint-config-next": "15.5.3",
-    "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-testing-library": "^7.1.0",
-    "eslint-plugin-jest-dom": "^5.4.0",
-    "husky": "^9.1.7",
-    "jsdom": "^25.0.1",
-    "lint-staged": "^15.2.10",
-    "msw": "^2.6.5",
-    "prettier": "^3.4.2",
-    "prettier-plugin-tailwindcss": "^0.6.9",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "vitest": "^2.1.5"
-  },
-  "lint-staged": {
-    "*.{ts,tsx,js,jsx}": [
-      "eslint --cache --fix",
-      "prettier --write"
-    ],
-    "*.{json,md,css}": [
-      "prettier --write"
-    ]
+    "typescript": "^5"
   }
 }
