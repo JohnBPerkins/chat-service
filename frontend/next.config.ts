@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Optimize for production deployment
-  output: 'standalone',
-
   // Enable experimental features for better performance
   experimental: {
     // Optimize bundle size
