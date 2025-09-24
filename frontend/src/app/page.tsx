@@ -1,3 +1,10 @@
+'use client'
+
+import { ChatApp } from '@/components/chat-app'
+
+// Force dynamic rendering for this page
+export const dynamic = 'force-dynamic'
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
@@ -36,10 +43,7 @@ export default function Home() {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-8 py-8 h-[calc(100vh-120px)]">
-          <div className="text-center text-white">
-            <h2 className="text-3xl font-bold mb-4">Chat Service</h2>
-            <p className="text-lg text-white/70">Real-time chat application</p>
-          </div>
+          <ChatApp />
         </main>
       </div>
     </div>
