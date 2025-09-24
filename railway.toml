@@ -1,6 +1,6 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "./Dockerfile"
 # Only watch specific paths, excluding frontend directory
 watchPaths = ["backend/**", "*.go", "go.mod", "go.sum", "Dockerfile", "railway.toml"]
 
