@@ -17,7 +17,7 @@ const errorMessages: Record<string, string> = {
 
 function AuthErrorContent() {
   const searchParams = useSearchParams()
-  const error = searchParams.get('error')
+  const error = searchParams?.get('error') || null
   const message = error ? errorMessages[error] || errorMessages.Default : errorMessages.Default
 
   return (

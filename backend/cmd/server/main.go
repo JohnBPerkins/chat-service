@@ -29,10 +29,17 @@ func main() {
 	}
 
 	// Initialize MongoDB
+	log.Printf("Attempting to connect to MongoDB (database: %s)...", config.DatabaseName)
 	db, err := database.NewMongoDB(config.MongoURI, config.DatabaseName)
 	if err != nil {
-		log.Fatalf("Failed to connect to MongoDB: %v", err)
+		// Log connection failure with partial URI (no credentials)
+		maskedURI := config.MongoURI
+		if len(maskedURI) > 20 {
+			maskedURI = maskedURI[:12] + "..." + maskedURI[len(maskedURI)-8:]
+		}
+		log.Fatalf("Failed to connect to MongoDB (%s): %v", maskedURI, err)
 	}
+	log.Printf("Successfully connected to MongoDB")
 	defer db.Close()
 
 	// Initialize NATS

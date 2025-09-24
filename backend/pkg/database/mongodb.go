@@ -15,16 +15,31 @@ type MongoDB struct {
 }
 
 func NewMongoDB(uri, dbName string) (*MongoDB, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Use longer timeout for Railway deployment
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
+	// Configure connection options with retries and timeouts
+	clientOptions := options.Client().
+		ApplyURI(uri).
+		SetMaxPoolSize(10).
+		SetMinPoolSize(1).
+		SetMaxConnIdleTime(30 * time.Second).
+		SetServerSelectionTimeout(20 * time.Second).
+		SetConnectTimeout(10 * time.Second)
+
+	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	// Ping the database
-	if err = client.Ping(ctx, nil); err != nil {
+	// Ping the database with extended timeout
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer pingCancel()
+
+	if err = client.Ping(pingCtx, nil); err != nil {
+		// Try to disconnect on failure
+		client.Disconnect(context.Background())
 		return nil, err
 	}
 
