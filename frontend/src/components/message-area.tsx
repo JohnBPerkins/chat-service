@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { Send, Loader2, Users, Trash2, Settings } from 'lucide-react'
 import { apiClient } from '@/lib/api'
-import { formatRelativeTime, shouldGroupMessages } from '@/utils/time'
+import { formatRelativeTime, getMessageGroupInfo } from '@/utils/time'
 import { v4 as uuidv4 } from 'uuid'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { useTyping } from '@/hooks/use-typing'
@@ -317,12 +317,36 @@ export function MessageArea({
           messages
             .filter(message => message)
             .map((message, index) => {
-              const previousMessage = index > 0 ? messages[index - 1] : null
-              const isGrouped = shouldGroupMessages(message, previousMessage)
-              const isFirstInGroup = !isGrouped
+              const filteredMessages = messages.filter(m => m)
+              const { isFirstInGroup, isLastInGroup, isMiddleInGroup } = getMessageGroupInfo(filteredMessages, index)
+
+              // Determine bubble styling based on position in group
+              const getBubbleClasses = () => {
+                if (isFirstInGroup && isLastInGroup) {
+                  // Single message (not grouped)
+                  return "rounded-2xl rounded-tl-lg"
+                } else if (isFirstInGroup) {
+                  // First in group
+                  return "rounded-2xl rounded-tl-lg rounded-bl-lg rounded-br-sm"
+                } else if (isLastInGroup) {
+                  // Last in group
+                  return "rounded-2xl rounded-tl-sm rounded-tr-lg rounded-bl-lg rounded-br-lg"
+                } else {
+                  // Middle of group
+                  return "rounded-2xl rounded-tl-sm rounded-tr-lg rounded-bl-lg rounded-br-sm"
+                }
+              }
+
+              const getSpacingClasses = () => {
+                if (isFirstInGroup) {
+                  return "" // Normal spacing for first message
+                } else {
+                  return "-mt-1" // Negative margin to connect bubbles
+                }
+              }
 
               return (
-                <div key={message.id} className={`group flex gap-3 ${!isFirstInGroup ? 'mt-1' : ''}`}>
+                <div key={message.id} className={`group flex gap-3 ${getSpacingClasses()}`}>
                   {/* Avatar - only show for first message in group */}
                   {isFirstInGroup ? (
                     <img
@@ -351,9 +375,7 @@ export function MessageArea({
                     )}
 
                     {/* Message bubble */}
-                    <div className={`rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm ${
-                      isFirstInGroup ? 'rounded-tl-lg' : 'rounded-tl-2xl'
-                    }`}>
+                    <div className={`border border-white/10 bg-white/5 p-4 backdrop-blur-sm ${getBubbleClasses()}`}>
                       <p className="whitespace-pre-wrap text-white/90">{message.body}</p>
                     </div>
                   </div>

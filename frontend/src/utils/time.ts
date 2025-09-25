@@ -29,3 +29,29 @@ export function shouldGroupMessages(
 
   return diffInMinutes <= 10
 }
+
+export function getMessageGroupInfo(
+  messages: { senderId: string; createdAt: string }[],
+  currentIndex: number
+): {
+  isFirstInGroup: boolean
+  isLastInGroup: boolean
+  isMiddleInGroup: boolean
+} {
+  const currentMessage = messages[currentIndex]
+  const previousMessage = currentIndex > 0 ? messages[currentIndex - 1] : null
+  const nextMessage = currentIndex < messages.length - 1 ? messages[currentIndex + 1] : null
+
+  const isGroupedWithPrevious = shouldGroupMessages(currentMessage, previousMessage)
+  const isGroupedWithNext = nextMessage ? shouldGroupMessages(nextMessage, currentMessage) : false
+
+  const isFirstInGroup = !isGroupedWithPrevious
+  const isLastInGroup = !isGroupedWithNext
+  const isMiddleInGroup = isGroupedWithPrevious && isGroupedWithNext
+
+  return {
+    isFirstInGroup,
+    isLastInGroup,
+    isMiddleInGroup
+  }
+}
