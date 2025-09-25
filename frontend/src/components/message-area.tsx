@@ -20,12 +20,14 @@ interface MessageAreaProps {
   conversation: Conversation
   isConnected: boolean
   onConversationDeleted?: () => void
+  onConversationUpdated?: (conversation: Conversation) => void
 }
 
 export function MessageArea({
   conversation,
   isConnected,
   onConversationDeleted,
+  onConversationUpdated,
 }: MessageAreaProps) {
   const { data: session } = useSession()
   const [messageText, setMessageText] = useState('')
@@ -386,6 +388,7 @@ export function MessageArea({
         conversation={conversation}
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        onConversationUpdated={onConversationUpdated}
       />
     </div>
   )

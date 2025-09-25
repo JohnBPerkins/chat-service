@@ -37,6 +37,7 @@ export function ChatApp() {
             conversation={selectedConversation}
             isConnected={isConnected}
             onConversationDeleted={() => setSelectedConversation(null)}
+            onConversationUpdated={setSelectedConversation}
           />
         ) : (
           <div className="h-full bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 flex items-center justify-center">

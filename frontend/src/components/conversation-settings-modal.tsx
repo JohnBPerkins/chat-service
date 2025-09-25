@@ -11,6 +11,7 @@ interface ConversationSettingsModalProps {
   conversation: Conversation
   isOpen: boolean
   onClose: () => void
+  onConversationUpdated?: (conversation: Conversation) => void
 }
 
 interface ParticipantsResponse {
@@ -20,7 +21,8 @@ interface ParticipantsResponse {
 export function ConversationSettingsModal({
   conversation,
   isOpen,
-  onClose
+  onClose,
+  onConversationUpdated
 }: ConversationSettingsModalProps) {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
@@ -41,8 +43,18 @@ export function ConversationSettingsModal({
   const updateTitleMutation = useMutation({
     mutationFn: (title: string) => apiClient.updateConversationTitle(conversation.id, title),
     onSuccess: () => {
+      // Update both conversation lists and the current conversation
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      queryClient.invalidateQueries({ queryKey: ['conversation-participants', conversation.id] })
       setIsEditingTitle(false)
+
+      // Update the conversation object immediately in the parent component
+      if (onConversationUpdated) {
+        onConversationUpdated({
+          ...conversation,
+          title: newTitle.trim()
+        })
+      }
     },
   })
 
@@ -148,7 +160,7 @@ export function ConversationSettingsModal({
                     value={newParticipantEmail}
                     onChange={(e) => setNewParticipantEmail(e.target.value)}
                     placeholder="Enter email address"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-900"
                   />
                   <button
                     type="submit"
@@ -231,7 +243,7 @@ export function ConversationSettingsModal({
                       value={newTitle}
                       onChange={(e) => setNewTitle(e.target.value)}
                       placeholder="Enter conversation name"
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-900"
                       autoFocus
                     />
                     <button

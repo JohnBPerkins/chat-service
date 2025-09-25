@@ -309,7 +309,7 @@ func (h *Handlers) GetConversationParticipants(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	conversationID := r.PathValue("id")
+	conversationID := chi.URLParam(r, "id")
 	if conversationID == "" {
 		http.Error(w, "Conversation ID required", http.StatusBadRequest)
 		return
@@ -341,7 +341,7 @@ func (h *Handlers) UpdateConversationTitle(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	conversationID := r.PathValue("id")
+	conversationID := chi.URLParam(r, "id")
 	if conversationID == "" {
 		http.Error(w, "Conversation ID required", http.StatusBadRequest)
 		return
@@ -382,7 +382,7 @@ func (h *Handlers) AddParticipant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conversationID := r.PathValue("id")
+	conversationID := chi.URLParam(r, "id")
 	if conversationID == "" {
 		http.Error(w, "Conversation ID required", http.StatusBadRequest)
 		return
@@ -423,13 +423,13 @@ func (h *Handlers) RemoveParticipant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conversationID := r.PathValue("id")
+	conversationID := chi.URLParam(r, "id")
 	if conversationID == "" {
 		http.Error(w, "Conversation ID required", http.StatusBadRequest)
 		return
 	}
 
-	targetUserID := r.PathValue("userId")
+	targetUserID := chi.URLParam(r, "userId")
 	if targetUserID == "" {
 		http.Error(w, "Target user ID required", http.StatusBadRequest)
 		return
