@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Send, Loader2, Users, Trash2 } from 'lucide-react'
+import { Send, Loader2, Users, Trash2, Settings } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
 import { v4 as uuidv4 } from 'uuid'
@@ -13,6 +13,7 @@ import { useReadReceipts } from '@/hooks/use-read-receipts'
 import { usePaginatedMessages } from '@/hooks/use-paginated-messages'
 import { useIntersectionObserver } from '@/hooks/use-intersection-observer'
 import { TypingIndicator } from './typing-indicator'
+import { ConversationSettingsModal } from './conversation-settings-modal'
 import type { Conversation } from '@/types/chat'
 
 interface MessageAreaProps {
@@ -28,6 +29,7 @@ export function MessageArea({
 }: MessageAreaProps) {
   const { data: session } = useSession()
   const [messageText, setMessageText] = useState('')
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
 
@@ -254,18 +256,27 @@ export function MessageArea({
               </div>
             </div>
           </div>
-          <button
-            onClick={handleDeleteConversation}
-            disabled={deleteConversationMutation.isPending}
-            className="rounded-xl p-2 text-white/60 transition-all duration-300 hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-50"
-            title="Delete conversation"
-          >
-            {deleteConversationMutation.isPending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Trash2 className="h-5 w-5" />
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="rounded-xl p-2 text-white/60 transition-all duration-300 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              title="Conversation Settings"
+            >
+              <Settings className="h-5 w-5" />
+            </button>
+            <button
+              onClick={handleDeleteConversation}
+              disabled={deleteConversationMutation.isPending}
+              className="rounded-xl p-2 text-white/60 transition-all duration-300 hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Delete conversation"
+            >
+              {deleteConversationMutation.isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Trash2 className="h-5 w-5" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -369,6 +380,13 @@ export function MessageArea({
           </button>
         </form>
       </div>
+
+      {/* Settings Modal */}
+      <ConversationSettingsModal
+        conversation={conversation}
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
     </div>
   )
 }
