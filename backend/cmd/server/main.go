@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -76,9 +77,23 @@ func main() {
 	r.Use(chimiddleware.Recoverer)
 	r.Use(chimiddleware.Timeout(60 * time.Second))
 
-	// CORS
+	// CORS - split comma-separated origins
+	allowedOrigins := []string{"http://localhost:3000"} // default for development
+	if config.AllowedOrigins != "" {
+		// Split comma-separated origins and trim whitespace
+		origins := strings.Split(config.AllowedOrigins, ",")
+		allowedOrigins = make([]string, len(origins))
+		for i, origin := range origins {
+			allowedOrigins[i] = strings.TrimSpace(origin)
+			// Remove trailing slash if present
+			if strings.HasSuffix(allowedOrigins[i], "/") {
+				allowedOrigins[i] = allowedOrigins[i][:len(allowedOrigins[i])-1]
+			}
+		}
+	}
+
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{config.AllowedOrigins},
+		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
