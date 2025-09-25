@@ -69,8 +69,8 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 				CreatedAt:      existingMessage.CreatedAt,
 			}
 
-			// Fetch sender information
-			if sender, err := s.userService.GetUserByID(ctx, existingMessage.SenderID); err == nil {
+			// Fetch sender information - SenderID is actually an email
+			if sender, err := s.userService.GetUserByEmail(ctx, existingMessage.SenderID); err == nil {
 				messageWithSender.Sender = sender
 			}
 
@@ -89,8 +89,8 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 		CreatedAt:      message.CreatedAt,
 	}
 
-	// Fetch sender information
-	if sender, err := s.userService.GetUserByID(ctx, message.SenderID); err == nil {
+	// Fetch sender information - SenderID is actually an email
+	if sender, err := s.userService.GetUserByEmail(ctx, message.SenderID); err == nil {
 		messageWithSender.Sender = sender
 	}
 
@@ -169,8 +169,8 @@ func (s *MessageService) GetMessages(ctx context.Context, conversationID string,
 			CreatedAt:      msg.CreatedAt,
 		}
 
-		// Fetch sender information
-		if sender, err := s.userService.GetUserByID(ctx, msg.SenderID); err == nil {
+		// Fetch sender information - SenderID is actually an email
+		if sender, err := s.userService.GetUserByEmail(ctx, msg.SenderID); err == nil {
 			messagesWithSender[i].Sender = sender
 		}
 		// If user fetch fails, sender will be nil and frontend should handle it gracefully
