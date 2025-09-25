@@ -20,9 +20,15 @@ import (
 
 func main() {
 	// Load configuration
+	// Check both MONGODB_URI and MONGO_URL (Railway provides MONGO_URL)
+	mongoURI := getEnv("MONGODB_URI", "")
+	if mongoURI == "" {
+		mongoURI = getEnv("MONGO_URL", "mongodb://localhost:27017")
+	}
+
 	config := &Config{
 		Port:           getEnv("PORT", "8080"),
-		MongoURI:       getEnv("MONGODB_URI", "mongodb://localhost:27017"),
+		MongoURI:       mongoURI,
 		DatabaseName:   getEnv("DATABASE_NAME", "chat_service"),
 		NATSUrl:        getEnv("NATS_URL", "nats://localhost:4222"),
 		AllowedOrigins: getEnv("ALLOWED_ORIGINS", "http://localhost:3000"),
