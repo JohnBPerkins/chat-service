@@ -157,3 +157,16 @@ type PaginatedMessagesResponse struct {
 	HasMore    bool                `json:"hasMore"`
 	NextCursor string              `json:"nextCursor,omitempty"`
 }
+
+// Conversation management types
+type UpdateConversationTitleRequest struct {
+	Title string `json:"title"`
+}
+
+type AddParticipantRequest struct {
+	UserID string `json:"userId"`
+}
+
+type ParticipantsResponse struct {
+	Participants []User `json:"participants"`
+}

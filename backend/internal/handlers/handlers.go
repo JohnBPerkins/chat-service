@@ -300,3 +300,155 @@ func (h *Handlers) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	h.WebSocketHub.HandleWebSocket(w, r, userID)
 }
+
+// GetConversationParticipants returns all participants of a conversation
+func (h *Handlers) GetConversationParticipants(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		http.Error(w, "User ID required as query parameter", http.StatusBadRequest)
+		return
+	}
+
+	conversationID := r.PathValue("id")
+	if conversationID == "" {
+		http.Error(w, "Conversation ID required", http.StatusBadRequest)
+		return
+	}
+
+	participants, err := h.ConversationService.GetConversationParticipants(r.Context(), conversationID, userID)
+	if err != nil {
+		if err.Error() == "user not authorized to view participants" {
+			http.Error(w, err.Error(), http.StatusForbidden)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	response := models.ParticipantsResponse{
+		Participants: participants,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// UpdateConversationTitle updates the title of a conversation
+func (h *Handlers) UpdateConversationTitle(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		http.Error(w, "User ID required as query parameter", http.StatusBadRequest)
+		return
+	}
+
+	conversationID := r.PathValue("id")
+	if conversationID == "" {
+		http.Error(w, "Conversation ID required", http.StatusBadRequest)
+		return
+	}
+
+	var req models.UpdateConversationTitleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Title == "" {
+		http.Error(w, "Title is required", http.StatusBadRequest)
+		return
+	}
+
+	err := h.ConversationService.UpdateConversationTitle(r.Context(), conversationID, userID, req.Title)
+	if err != nil {
+		if err.Error() == "user not authorized to update conversation" {
+			http.Error(w, err.Error(), http.StatusForbidden)
+		} else if err.Error() == "conversation not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Title updated successfully"})
+}
+
+// AddParticipant adds a user to a conversation
+func (h *Handlers) AddParticipant(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		http.Error(w, "User ID required as query parameter", http.StatusBadRequest)
+		return
+	}
+
+	conversationID := r.PathValue("id")
+	if conversationID == "" {
+		http.Error(w, "Conversation ID required", http.StatusBadRequest)
+		return
+	}
+
+	var req models.AddParticipantRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.UserID == "" {
+		http.Error(w, "UserID is required", http.StatusBadRequest)
+		return
+	}
+
+	err := h.ConversationService.AddParticipant(r.Context(), conversationID, userID, req.UserID)
+	if err != nil {
+		if err.Error() == "user not authorized to add participants" {
+			http.Error(w, err.Error(), http.StatusForbidden)
+		} else if err.Error() == "user is already a participant" {
+			http.Error(w, err.Error(), http.StatusConflict)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Participant added successfully"})
+}
+
+// RemoveParticipant removes a user from a conversation
+func (h *Handlers) RemoveParticipant(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		http.Error(w, "User ID required as query parameter", http.StatusBadRequest)
+		return
+	}
+
+	conversationID := r.PathValue("id")
+	if conversationID == "" {
+		http.Error(w, "Conversation ID required", http.StatusBadRequest)
+		return
+	}
+
+	targetUserID := r.PathValue("userId")
+	if targetUserID == "" {
+		http.Error(w, "Target user ID required", http.StatusBadRequest)
+		return
+	}
+
+	err := h.ConversationService.RemoveParticipant(r.Context(), conversationID, userID, targetUserID)
+	if err != nil {
+		if err.Error() == "user not authorized to remove participants" {
+			http.Error(w, err.Error(), http.StatusForbidden)
+		} else if err.Error() == "participant not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else if err.Error() == "cannot remove last participant from conversation" {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Participant removed successfully"})
+}

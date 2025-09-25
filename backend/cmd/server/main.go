@@ -119,6 +119,12 @@ func main() {
 		r.Delete("/conversations/{id}", handlers.DeleteConversation)
 		r.Get("/conversations/{id}/messages", handlers.GetMessages)
 
+		// Conversation management routes
+		r.Get("/conversations/{id}/participants", handlers.GetConversationParticipants)
+		r.Put("/conversations/{id}/title", handlers.UpdateConversationTitle)
+		r.Post("/conversations/{id}/participants", handlers.AddParticipant)
+		r.Delete("/conversations/{id}/participants/{userId}", handlers.RemoveParticipant)
+
 		// Message routes
 		r.Post("/messages", handlers.SendMessage)
 		r.Post("/messages/{id}/read", handlers.MarkMessageAsRead)

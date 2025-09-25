@@ -158,6 +158,136 @@ func (s *ConversationService) GetUserConversations(ctx context.Context, userID s
 	return result, nil
 }
 
+// GetConversationParticipants returns all participants of a conversation
+func (s *ConversationService) GetConversationParticipants(ctx context.Context, conversationID, userID string) ([]models.User, error) {
+	// First verify user is a participant
+	if !s.isUserParticipant(ctx, conversationID, userID) {
+		return nil, fmt.Errorf("user not authorized to view participants")
+	}
+
+	participantsCollection := s.db.DB.Collection("participants")
+
+	// Get all participants for this conversation
+	cursor, err := participantsCollection.Find(ctx, bson.M{"conversationId": conversationID})
+	if err != nil {
+		return nil, fmt.Errorf("failed to find participants: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var participants []models.Participant
+	if err = cursor.All(ctx, &participants); err != nil {
+		return nil, fmt.Errorf("failed to decode participants: %w", err)
+	}
+
+	// Get user info for each participant
+	users := make([]models.User, 0, len(participants))
+	for _, p := range participants {
+		if user, err := s.userService.GetUserByEmail(ctx, p.UserID); err == nil {
+			users = append(users, *user)
+		}
+	}
+
+	return users, nil
+}
+
+// UpdateConversationTitle updates the title of a group conversation
+func (s *ConversationService) UpdateConversationTitle(ctx context.Context, conversationID, userID, newTitle string) error {
+	// Verify user is a participant
+	if !s.isUserParticipant(ctx, conversationID, userID) {
+		return fmt.Errorf("user not authorized to update conversation")
+	}
+
+	conversationsCollection := s.db.DB.Collection("conversations")
+
+	// Update the conversation title
+	filter := bson.M{"_id": conversationID}
+	update := bson.D{{Key: "$set", Value: bson.D{{Key: "title", Value: newTitle}}}}
+
+	result, err := conversationsCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update conversation title: %w", err)
+	}
+
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("conversation not found")
+	}
+
+	return nil
+}
+
+// AddParticipant adds a user to a conversation
+func (s *ConversationService) AddParticipant(ctx context.Context, conversationID, requesterID, newUserID string) error {
+	// Verify requester is a participant
+	if !s.isUserParticipant(ctx, conversationID, requesterID) {
+		return fmt.Errorf("user not authorized to add participants")
+	}
+
+	// Check if user is already a participant
+	if s.isUserParticipant(ctx, conversationID, newUserID) {
+		return fmt.Errorf("user is already a participant")
+	}
+
+	participantsCollection := s.db.DB.Collection("participants")
+
+	// Add the new participant
+	participantID := fmt.Sprintf("%s:%s", conversationID, newUserID)
+	participant := models.Participant{
+		ID:             participantID,
+		ConversationID: conversationID,
+		UserID:         newUserID,
+		JoinedAt:       time.Now(),
+	}
+
+	_, err := participantsCollection.InsertOne(ctx, participant)
+	if err != nil {
+		return fmt.Errorf("failed to add participant: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveParticipant removes a user from a conversation
+func (s *ConversationService) RemoveParticipant(ctx context.Context, conversationID, requesterID, targetUserID string) error {
+	// Verify requester is a participant
+	if !s.isUserParticipant(ctx, conversationID, requesterID) {
+		return fmt.Errorf("user not authorized to remove participants")
+	}
+
+	// Don't allow removing yourself if you're the last participant
+	participantsCollection := s.db.DB.Collection("participants")
+	count, err := participantsCollection.CountDocuments(ctx, bson.M{"conversationId": conversationID})
+	if err != nil {
+		return fmt.Errorf("failed to count participants: %w", err)
+	}
+
+	if count <= 1 {
+		return fmt.Errorf("cannot remove last participant from conversation")
+	}
+
+	// Remove the participant
+	participantID := fmt.Sprintf("%s:%s", conversationID, targetUserID)
+	result, err := participantsCollection.DeleteOne(ctx, bson.M{"_id": participantID})
+	if err != nil {
+		return fmt.Errorf("failed to remove participant: %w", err)
+	}
+
+	if result.DeletedCount == 0 {
+		return fmt.Errorf("participant not found")
+	}
+
+	return nil
+}
+
+// isUserParticipant checks if a user is a participant in a conversation
+func (s *ConversationService) isUserParticipant(ctx context.Context, conversationID, userID string) bool {
+	participantsCollection := s.db.DB.Collection("participants")
+	participantID := fmt.Sprintf("%s:%s", conversationID, userID)
+
+	var participant models.Participant
+	err := participantsCollection.FindOne(ctx, bson.M{"_id": participantID}).Decode(&participant)
+	return err == nil
+}
+
 func (s *ConversationService) GetConversationByID(ctx context.Context, conversationID string) (*models.Conversation, error) {
 	collection := s.db.DB.Collection("conversations")
 
