@@ -145,10 +145,10 @@ func (s *ConversationService) GetUserConversations(ctx context.Context, userID s
 		}
 		participantCursor.Close(ctx)
 
-		// Populate user info for each participant
+		// Populate user info for each participant - UserID is actually an email
 		participantUsers := make([]models.User, 0, len(convParticipants))
 		for _, p := range convParticipants {
-			if user, err := s.userService.GetUserByID(ctx, p.UserID); err == nil {
+			if user, err := s.userService.GetUserByEmail(ctx, p.UserID); err == nil {
 				participantUsers = append(participantUsers, *user)
 			}
 		}
