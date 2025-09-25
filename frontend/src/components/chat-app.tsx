@@ -15,6 +15,20 @@ export function ChatApp() {
 
   const isAuthenticated = status === 'authenticated' && !!session
 
+  // Show loading state instead of flashing auth prompt
+  if (status === 'loading') {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <span className="text-2xl">💬</span>
+          </div>
+          <p className="text-white/70">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full flex gap-6">
       {/* Sidebar */}
