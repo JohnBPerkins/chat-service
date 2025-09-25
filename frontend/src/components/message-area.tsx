@@ -249,7 +249,7 @@ export function MessageArea({
               </h2>
               <div className="flex items-center gap-2 text-sm text-white/60">
                 <span>{conversation.participants?.length || 0} participants</span>
-                {!isConnected && (
+                {session?.user && !isConnected && (
                   <>
                     <span>•</span>
                     <span className="text-red-400">Offline</span>
