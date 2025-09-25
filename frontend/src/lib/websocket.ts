@@ -36,7 +36,7 @@ export class ChatWebSocket {
   private isAuthenticated = false
   private pendingSubscriptions: string[] = []
 
-  constructor(private wsUrl: string = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080') {}
+  constructor(private wsUrl: string = process.env.NEXT_PUBLIC_WS_BASE_URL || 'ws://localhost:8080') {}
 
   async connect(): Promise<void> {
     if (this.ws?.readyState === WebSocket.OPEN) {
