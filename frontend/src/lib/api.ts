@@ -130,6 +130,35 @@ class ApiClient {
       body: JSON.stringify({ conversationId }),
     })
   }
+
+  // Conversation Management APIs
+  async getConversationParticipants(conversationId: string): Promise<{ participants: User[] }> {
+    const userId = await this.getUserId()
+    return this.request<{ participants: User[] }>(`/v1/conversations/${conversationId}/participants?userId=${encodeURIComponent(userId)}`)
+  }
+
+  async updateConversationTitle(conversationId: string, title: string): Promise<{ message: string }> {
+    const userId = await this.getUserId()
+    return this.request<{ message: string }>(`/v1/conversations/${conversationId}/title?userId=${encodeURIComponent(userId)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ title }),
+    })
+  }
+
+  async addParticipant(conversationId: string, userEmail: string): Promise<{ message: string }> {
+    const userId = await this.getUserId()
+    return this.request<{ message: string }>(`/v1/conversations/${conversationId}/participants?userId=${encodeURIComponent(userId)}`, {
+      method: 'POST',
+      body: JSON.stringify({ userId: userEmail }),
+    })
+  }
+
+  async removeParticipant(conversationId: string, userEmail: string): Promise<{ message: string }> {
+    const userId = await this.getUserId()
+    return this.request<{ message: string }>(`/v1/conversations/${conversationId}/participants/${encodeURIComponent(userEmail)}?userId=${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+    })
+  }
 }
 
 export const apiClient = new ApiClient()

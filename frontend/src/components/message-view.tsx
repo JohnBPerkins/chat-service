@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Send, Loader2 } from 'lucide-react'
+import { Send, Loader2, Settings } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
 import { v4 as uuidv4 } from 'uuid'
@@ -13,6 +13,7 @@ import { useReadReceipts } from '@/hooks/use-read-receipts'
 import { usePaginatedMessages } from '@/hooks/use-paginated-messages'
 import { useIntersectionObserver } from '@/hooks/use-intersection-observer'
 import { TypingIndicator } from './typing-indicator'
+import { ConversationSettingsModal } from './conversation-settings-modal'
 import type { Conversation } from '@/types/chat'
 
 interface MessageViewProps {
@@ -22,6 +23,7 @@ interface MessageViewProps {
 export function MessageView({ conversation }: MessageViewProps) {
   const { data: session } = useSession()
   const [messageText, setMessageText] = useState('')
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
 
@@ -186,6 +188,13 @@ export function MessageView({ conversation }: MessageViewProps) {
               {conversation.participants?.length || 0} participants
             </p>
           </div>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Conversation Settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
@@ -273,6 +282,13 @@ export function MessageView({ conversation }: MessageViewProps) {
           </button>
         </form>
       </div>
+
+      {/* Settings Modal */}
+      <ConversationSettingsModal
+        conversation={conversation}
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
     </div>
   )
 }
