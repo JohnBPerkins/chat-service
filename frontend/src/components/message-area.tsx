@@ -364,7 +364,7 @@ export function MessageArea({
                   {/* Single connected bubble for all messages in group */}
                   <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
                     {group.messages.map((message, messageIndex) => (
-                      <div key={message.id} className={`p-4 ${messageIndex > 0 ? 'border-t border-white/5' : ''}`}>
+                      <div key={message.id} className={`${messageIndex === 0 ? 'pt-4 px-4 pb-1' : messageIndex === group.messages.length - 1 ? 'pt-1 px-4 pb-4' : 'py-1 px-4'}`}>
                         <p className="whitespace-pre-wrap text-white/90">{message.body}</p>
                       </div>
                     ))}
