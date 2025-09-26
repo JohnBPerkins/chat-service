@@ -410,7 +410,7 @@ export function MessageArea({
                         <div className="flex items-start justify-between">
                           <p className="whitespace-pre-wrap text-white/90 flex-1">{message.body}</p>
                           {/* Delete button - only show for current user's messages */}
-                          {message.sender?.id === session?.user?.email && (
+                          {message.senderId === session?.user?.email && (
                             <button
                               onClick={() => handleDeleteMessage(message.id)}
                               disabled={deleteMessageMutation.isPending}
