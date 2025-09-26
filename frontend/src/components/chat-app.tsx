@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { useQuery } from '@tanstack/react-query'
 import { ConversationSidebar } from './conversation-sidebar'
 import { MessageArea } from './message-area'
 import { AuthPrompt } from './auth-prompt'
 import { useWebSocket } from '@/hooks/use-websocket'
+import { apiClient } from '@/lib/api'
 import type { Conversation } from '@/types/chat'
 
 export function ChatApp() {
@@ -14,6 +16,26 @@ export function ChatApp() {
   const { isConnected, connectionError } = useWebSocket()
 
   const isAuthenticated = status === 'authenticated' && !!session
+
+  // Get conversations to keep selected conversation in sync
+  const { data: conversations } = useQuery({
+    queryKey: ['conversations'],
+    queryFn: () => apiClient.getConversations(),
+    enabled: isAuthenticated,
+  })
+
+  // Keep selected conversation in sync with conversations query data
+  useEffect(() => {
+    if (selectedConversation && conversations) {
+      const updatedConversation = conversations.find(c => c.id === selectedConversation.id)
+      if (updatedConversation && (
+        updatedConversation.title !== selectedConversation.title ||
+        updatedConversation.participants?.length !== selectedConversation.participants?.length
+      )) {
+        setSelectedConversation(updatedConversation)
+      }
+    }
+  }, [conversations, selectedConversation])
 
   // Show loading state instead of flashing auth prompt
   if (status === 'loading') {

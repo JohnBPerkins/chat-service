@@ -124,7 +124,22 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     ws.on('conversation.update', (data: ConversationUpdateFrame) => {
       console.log('Conversation update:', data)
 
-      // Invalidate conversations list to update conversation info
+      // Update conversations query cache directly
+      queryClient.setQueryData(['conversations'], (oldData: any) => {
+        if (!oldData) return oldData
+
+        return oldData.map((conversation: any) => {
+          if (conversation.id === data.conversationId) {
+            return {
+              ...conversation,
+              title: data.title !== undefined ? data.title : conversation.title,
+            }
+          }
+          return conversation
+        })
+      })
+
+      // Also invalidate to ensure consistency
       queryClient.invalidateQueries({
         queryKey: ['conversations']
       })
