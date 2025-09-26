@@ -128,6 +128,7 @@ func main() {
 		// Message routes
 		r.Post("/messages", handlers.SendMessage)
 		r.Post("/messages/{id}/read", handlers.MarkMessageAsRead)
+		r.Delete("/messages/{id}", handlers.DeleteMessage)
 	})
 
 	// WebSocket endpoint

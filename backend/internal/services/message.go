@@ -226,6 +226,38 @@ func (s *MessageService) PublishTypingIndicator(conversationID, userID string, i
 	return s.nats.PublishTyping(conversationID, typingData)
 }
 
+// DeleteMessage deletes a message if the user is the sender
+func (s *MessageService) DeleteMessage(ctx context.Context, messageID int64, userID string) error {
+	collection := s.db.DB.Collection("messages")
+
+	// First, find the message to verify ownership
+	var message models.Message
+	err := collection.FindOne(ctx, bson.M{"_id": messageID}).Decode(&message)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return fmt.Errorf("message not found")
+		}
+		return fmt.Errorf("failed to find message: %w", err)
+	}
+
+	// Check if the user is the sender
+	if message.SenderID != userID {
+		return fmt.Errorf("user not authorized to delete this message")
+	}
+
+	// Delete the message
+	result, err := collection.DeleteOne(ctx, bson.M{"_id": messageID})
+	if err != nil {
+		return fmt.Errorf("failed to delete message: %w", err)
+	}
+
+	if result.DeletedCount == 0 {
+		return fmt.Errorf("message not found")
+	}
+
+	return nil
+}
+
 // generateSnowflakeID is a simplified snowflake ID generator
 // In production, use a proper snowflake library
 func generateSnowflakeID() int64 {

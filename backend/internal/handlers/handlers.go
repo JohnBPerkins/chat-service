@@ -452,3 +452,41 @@ func (h *Handlers) RemoveParticipant(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Participant removed successfully"})
 }
+
+// DeleteMessage deletes a message
+func (h *Handlers) DeleteMessage(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		http.Error(w, "User ID required as query parameter", http.StatusBadRequest)
+		return
+	}
+
+	messageIDStr := chi.URLParam(r, "id")
+	if messageIDStr == "" {
+		http.Error(w, "Message ID is required", http.StatusBadRequest)
+		return
+	}
+
+	messageID, err := strconv.ParseInt(messageIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid message ID", http.StatusBadRequest)
+		return
+	}
+
+	err = h.MessageService.DeleteMessage(r.Context(), messageID, userID)
+	if err != nil {
+		if err.Error() == "message not found" {
+			http.Error(w, "Message not found", http.StatusNotFound)
+			return
+		}
+		if err.Error() == "user not authorized to delete this message" {
+			http.Error(w, "You can only delete your own messages", http.StatusForbidden)
+			return
+		}
+		http.Error(w, "Failed to delete message", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Message deleted successfully"})
+}

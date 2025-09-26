@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Send, Loader2, Users, Trash2, Settings } from 'lucide-react'
+import { Send, Loader2, Users, Trash2, Settings, X } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { formatRelativeTime } from '@/utils/time'
 import { v4 as uuidv4 } from 'uuid'
@@ -77,6 +77,42 @@ export function MessageArea({
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
       setMessageText('')
       stopTyping()
+    },
+  })
+
+  const deleteMessageMutation = useMutation({
+    mutationFn: apiClient.deleteMessage,
+    onMutate: async (messageId: number) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['messages', conversation.id, 'paginated'] })
+
+      // Snapshot the previous value
+      const previousMessages = queryClient.getQueryData(['messages', conversation.id, 'paginated'])
+
+      // Optimistically update to remove the message
+      queryClient.setQueryData(['messages', conversation.id, 'paginated'], (old: any) => {
+        if (!old?.pages) return old
+
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            messages: page.messages.filter((msg: any) => msg.id !== messageId)
+          }))
+        }
+      })
+
+      // Return a context object with the snapshotted value
+      return { previousMessages }
+    },
+    onError: (err, messageId, context) => {
+      // If the mutation fails, use the context to roll back
+      queryClient.setQueryData(['messages', conversation.id, 'paginated'], context?.previousMessages)
+    },
+    onSettled: () => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['messages', conversation.id, 'paginated'] })
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
     },
   })
 
@@ -177,6 +213,12 @@ export function MessageArea({
       )
     ) {
       deleteConversationMutation.mutate()
+    }
+  }
+
+  const handleDeleteMessage = (messageId: number) => {
+    if (window.confirm('Are you sure you want to delete this message?')) {
+      deleteMessageMutation.mutate(messageId)
     }
   }
 
@@ -364,8 +406,25 @@ export function MessageArea({
                   {/* Single connected bubble for all messages in group */}
                   <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
                     {group.messages.map((message, messageIndex) => (
-                      <div key={message.id} className={`${messageIndex === 0 ? 'pt-4 px-4 pb-1' : messageIndex === group.messages.length - 1 ? 'pt-1 px-4 pb-4' : 'py-1 px-4'}`}>
-                        <p className="whitespace-pre-wrap text-white/90">{message.body}</p>
+                      <div key={message.id} className={`group/message ${messageIndex === 0 ? 'pt-4 px-4 pb-1' : messageIndex === group.messages.length - 1 ? 'pt-1 px-4 pb-4' : 'py-1 px-4'} hover:bg-white/5 transition-colors relative`}>
+                        <div className="flex items-start justify-between">
+                          <p className="whitespace-pre-wrap text-white/90 flex-1">{message.body}</p>
+                          {/* Delete button - only show for current user's messages */}
+                          {message.sender?.id === session?.user?.email && (
+                            <button
+                              onClick={() => handleDeleteMessage(message.id)}
+                              disabled={deleteMessageMutation.isPending}
+                              className="ml-2 opacity-0 group-hover/message:opacity-100 p-1 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 flex-shrink-0"
+                              title="Delete message"
+                            >
+                              {deleteMessageMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <X className="h-3 w-3" />
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
