@@ -339,7 +339,7 @@ func (h *WebSocketHub) setupNATSSubscriptions(sub *ConversationSubscription) {
 	natsSub, err := h.natsConn.Conn.Subscribe(messageSubject, func(msg *natsgo.Msg) {
 		// Try to unmarshal as message deletion first
 		var deletionData models.WSMessageDeletedData
-		if err := json.Unmarshal(msg.Data, &deletionData); err == nil && deletionData.ID != 0 {
+		if err := json.Unmarshal(msg.Data, &deletionData); err == nil && deletionData.DeletedBy != "" {
 			frame := &models.WSFrame{
 				Type: "message.deleted",
 				TS:   time.Now().UnixMilli(),
