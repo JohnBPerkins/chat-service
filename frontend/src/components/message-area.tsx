@@ -396,13 +396,11 @@ export function MessageArea({
 
             return messageGroups.map((group, groupIndex) => (
               <div key={`group-${groupIndex}`} className="group flex gap-3">
-                {/* Avatar - center vertically when single message, top-align when multiple */}
+                {/* Avatar */}
                 <img
                   src={group.sender?.avatarUrl || '/default-avatar.svg'}
                   alt={group.sender?.name || 'User'}
-                  className={`h-10 w-10 flex-shrink-0 rounded-2xl ${
-                    group.messages.length === 1 ? 'self-center' : 'self-start'
-                  }`}
+                  className="h-10 w-10 flex-shrink-0 rounded-2xl"
                   onError={e => {
                     e.currentTarget.src = '/default-avatar.svg'
                   }}
@@ -421,8 +419,25 @@ export function MessageArea({
 
                   {/* Single connected bubble for all messages in group */}
                   <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
-                    {group.messages.map((message, messageIndex) => (
-                      <div key={message.id} className={`group/message ${messageIndex === 0 ? 'pt-4 px-4 pb-1' : messageIndex === group.messages.length - 1 ? 'pt-1 px-4 pb-4' : 'py-1 px-4'} hover:bg-white/5 transition-colors relative`}>
+                    {group.messages.map((message, messageIndex) => {
+                      // Fix padding for single vs multiple messages
+                      let paddingClass = ''
+                      if (group.messages.length === 1) {
+                        // Single message: full padding
+                        paddingClass = 'p-4'
+                      } else if (messageIndex === 0) {
+                        // First in group: top padding, small bottom
+                        paddingClass = 'pt-4 px-4 pb-1'
+                      } else if (messageIndex === group.messages.length - 1) {
+                        // Last in group: small top, full bottom
+                        paddingClass = 'pt-1 px-4 pb-4'
+                      } else {
+                        // Middle: small vertical padding
+                        paddingClass = 'py-1 px-4'
+                      }
+
+                      return (
+                      <div key={message.id} className={`group/message ${paddingClass} hover:bg-white/5 transition-colors relative`}>
                         <div className="flex items-start justify-between">
                           <p className="whitespace-pre-wrap text-white/90 flex-1">{message.body}</p>
                           {/* Delete button - only show for current user's messages */}
@@ -451,7 +466,8 @@ export function MessageArea({
                           )}
                         </div>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               </div>
