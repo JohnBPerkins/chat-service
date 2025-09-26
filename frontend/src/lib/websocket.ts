@@ -11,6 +11,8 @@ import type {
   MessageDeletedFrame,
   TypingUpdateEventFrame,
   ReceiptUpdateFrame,
+  ParticipantUpdateFrame,
+  ConversationUpdateFrame,
   ErrorFrame,
 } from '@/types/chat'
 
@@ -22,6 +24,8 @@ interface WebSocketEventHandlers {
   'message.deleted': EventHandler<MessageDeletedFrame>
   'typing.update': EventHandler<TypingUpdateEventFrame>
   'receipt.update': EventHandler<ReceiptUpdateFrame>
+  'participant.update': EventHandler<ParticipantUpdateFrame>
+  'conversation.update': EventHandler<ConversationUpdateFrame>
   'error': EventHandler<ErrorFrame>
   'open': EventHandler<void>
   'close': EventHandler<void>

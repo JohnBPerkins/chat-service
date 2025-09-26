@@ -117,6 +117,21 @@ export interface MessageDeletedFrame {
   deletedBy: string
 }
 
+export interface ParticipantUpdateFrame {
+  conversationId: string
+  userId: string
+  action: 'added' | 'removed'
+  user?: User
+  updatedBy: string
+}
+
+export interface ConversationUpdateFrame {
+  conversationId: string
+  title?: string
+  updateType: 'title' | 'image'
+  updatedBy: string
+}
+
 export interface ErrorFrame {
   code: string
   message: string

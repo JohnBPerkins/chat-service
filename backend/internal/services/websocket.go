@@ -329,6 +329,8 @@ func (h *WebSocketHub) unsubscribeClient(client *Client, conversationID string) 
 		if sub.PresenceSub != nil {
 			sub.PresenceSub.Unsubscribe()
 		}
+		// Note: participant and conversation update subscriptions aren't stored in sub
+		// but they'll be automatically unsubscribed when the connection closes
 		delete(h.subscriptions, conversationID)
 	}
 }
@@ -412,6 +414,48 @@ func (h *WebSocketHub) setupNATSSubscriptions(sub *ConversationSubscription) {
 		log.Printf("Failed to subscribe to presence: %v", err)
 	}
 	sub.PresenceSub = presenceSub
+
+	// Subscribe to participant updates
+	participantSubject := fmt.Sprintf("chat.conv.%s.participants", sub.ConversationID)
+	participantSub, err := h.natsConn.Conn.Subscribe(participantSubject, func(msg *natsgo.Msg) {
+		var participantData models.WSParticipantUpdateData
+		if err := json.Unmarshal(msg.Data, &participantData); err != nil {
+			log.Printf("Failed to unmarshal participant update data: %v", err)
+			return
+		}
+
+		frame := &models.WSFrame{
+			Type: "participant.update",
+			TS:   time.Now().UnixMilli(),
+			Data: participantData,
+		}
+
+		h.broadcastToSubscription(sub, frame)
+	})
+	if err != nil {
+		log.Printf("Failed to subscribe to participant updates: %v", err)
+	}
+
+	// Subscribe to conversation updates
+	conversationUpdateSubject := fmt.Sprintf("chat.conv.%s.updates", sub.ConversationID)
+	conversationUpdateSub, err := h.natsConn.Conn.Subscribe(conversationUpdateSubject, func(msg *natsgo.Msg) {
+		var conversationData models.WSConversationUpdateData
+		if err := json.Unmarshal(msg.Data, &conversationData); err != nil {
+			log.Printf("Failed to unmarshal conversation update data: %v", err)
+			return
+		}
+
+		frame := &models.WSFrame{
+			Type: "conversation.update",
+			TS:   time.Now().UnixMilli(),
+			Data: conversationData,
+		}
+
+		h.broadcastToSubscription(sub, frame)
+	})
+	if err != nil {
+		log.Printf("Failed to subscribe to conversation updates: %v", err)
+	}
 }
 
 func (h *WebSocketHub) broadcastToSubscription(sub *ConversationSubscription, frame *models.WSFrame) {

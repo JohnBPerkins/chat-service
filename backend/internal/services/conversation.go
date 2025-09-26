@@ -3,10 +3,12 @@ package services
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/JohnBPerkins/chat-service/backend/internal/models"
 	"github.com/JohnBPerkins/chat-service/backend/pkg/database"
+	"github.com/JohnBPerkins/chat-service/backend/pkg/nats"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -15,12 +17,14 @@ import (
 type ConversationService struct {
 	db          *database.MongoDB
 	userService *UserService
+	nats        *nats.NATSConnection
 }
 
-func NewConversationService(db *database.MongoDB, userService *UserService) *ConversationService {
+func NewConversationService(db *database.MongoDB, userService *UserService, natsConn *nats.NATSConnection) *ConversationService {
 	return &ConversationService{
 		db:          db,
 		userService: userService,
+		nats:        natsConn,
 	}
 }
 
@@ -212,6 +216,19 @@ func (s *ConversationService) UpdateConversationTitle(ctx context.Context, conve
 		return fmt.Errorf("conversation not found")
 	}
 
+	// Publish WebSocket event
+	conversationUpdateData := &models.WSConversationUpdateData{
+		ConversationID: conversationID,
+		Title:          newTitle,
+		UpdateType:     "title",
+		UpdatedBy:      userID,
+	}
+
+	subject := fmt.Sprintf("chat.conv.%s.updates", conversationID)
+	if err := s.nats.PublishToSubject(subject, conversationUpdateData); err != nil {
+		log.Printf("Failed to publish conversation title update event: %v", err)
+	}
+
 	return nil
 }
 
@@ -264,8 +281,21 @@ func (s *ConversationService) RemoveParticipant(ctx context.Context, conversatio
 		return fmt.Errorf("cannot remove last participant from conversation")
 	}
 
-	// Remove the participant
+	// Get participant info before deletion for WebSocket event
 	participantID := fmt.Sprintf("%s:%s", conversationID, targetUserID)
+	var participant models.Participant
+	err = participantsCollection.FindOne(ctx, bson.M{"_id": participantID}).Decode(&participant)
+	if err != nil {
+		return fmt.Errorf("participant not found")
+	}
+
+	// Get user info for WebSocket event
+	user, err := s.userService.GetUserByEmail(ctx, targetUserID)
+	if err != nil {
+		return fmt.Errorf("failed to get user info: %w", err)
+	}
+
+	// Remove the participant
 	result, err := participantsCollection.DeleteOne(ctx, bson.M{"_id": participantID})
 	if err != nil {
 		return fmt.Errorf("failed to remove participant: %w", err)
@@ -273,6 +303,20 @@ func (s *ConversationService) RemoveParticipant(ctx context.Context, conversatio
 
 	if result.DeletedCount == 0 {
 		return fmt.Errorf("participant not found")
+	}
+
+	// Publish WebSocket event
+	participantUpdateData := &models.WSParticipantUpdateData{
+		ConversationID: conversationID,
+		UserID:         targetUserID,
+		Action:         "removed",
+		User:           user,
+		UpdatedBy:      requesterID,
+	}
+
+	subject := fmt.Sprintf("chat.conv.%s.participants", conversationID)
+	if err := s.nats.PublishToSubject(subject, participantUpdateData); err != nil {
+		log.Printf("Failed to publish participant removal event: %v", err)
 	}
 
 	return nil

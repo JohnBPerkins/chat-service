@@ -8,6 +8,8 @@ import type {
   MessageDeletedFrame,
   TypingUpdateEventFrame,
   ReceiptUpdateFrame,
+  ParticipantUpdateFrame,
+  ConversationUpdateFrame,
   ErrorFrame,
 } from '@/types/chat'
 
@@ -17,6 +19,8 @@ interface UseWebSocketOptions {
   onMessageDeleted?: (deletion: MessageDeletedFrame) => void
   onTypingUpdate?: (typing: TypingUpdateEventFrame) => void
   onReceiptUpdate?: (receipt: ReceiptUpdateFrame) => void
+  onParticipantUpdate?: (participant: ParticipantUpdateFrame) => void
+  onConversationUpdate?: (conversation: ConversationUpdateFrame) => void
   onError?: (error: ErrorFrame) => void
 }
 
@@ -101,6 +105,33 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       options.onReceiptUpdate?.(data)
     })
 
+    ws.on('participant.update', (data: ParticipantUpdateFrame) => {
+      console.log('Participant update:', data)
+
+      // Invalidate conversations list to update participant counts and info
+      queryClient.invalidateQueries({
+        queryKey: ['conversations']
+      })
+
+      // Invalidate conversation participants
+      queryClient.invalidateQueries({
+        queryKey: ['participants', data.conversationId]
+      })
+
+      options.onParticipantUpdate?.(data)
+    })
+
+    ws.on('conversation.update', (data: ConversationUpdateFrame) => {
+      console.log('Conversation update:', data)
+
+      // Invalidate conversations list to update conversation info
+      queryClient.invalidateQueries({
+        queryKey: ['conversations']
+      })
+
+      options.onConversationUpdate?.(data)
+    })
+
     ws.on('error', (data: ErrorFrame) => {
       console.error('WebSocket error:', data)
       setConnectionError(data.message)
@@ -123,6 +154,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       ws.off('message.deleted')
       ws.off('typing.update')
       ws.off('receipt.update')
+      ws.off('participant.update')
+      ws.off('conversation.update')
       ws.off('error')
     }
   }, [session?.accessToken, queryClient, options])

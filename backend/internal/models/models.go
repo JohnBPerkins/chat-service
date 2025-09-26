@@ -152,6 +152,21 @@ type WSMessageDeletedData struct {
 	DeletedBy      string `json:"deletedBy"`
 }
 
+type WSParticipantUpdateData struct {
+	ConversationID string `json:"conversationId"`
+	UserID         string `json:"userId"`
+	Action         string `json:"action"` // "added" or "removed"
+	User           *User  `json:"user,omitempty"`
+	UpdatedBy      string `json:"updatedBy"`
+}
+
+type WSConversationUpdateData struct {
+	ConversationID string `json:"conversationId"`
+	Title          string `json:"title,omitempty"`
+	UpdateType     string `json:"updateType"` // "title", "image", etc.
+	UpdatedBy      string `json:"updatedBy"`
+}
+
 type WSErrorData struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
