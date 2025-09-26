@@ -111,6 +111,12 @@ export interface ReceiptUpdateFrame {
   messageId: number
 }
 
+export interface MessageDeletedFrame {
+  id: number
+  conversationId: string
+  deletedBy: string
+}
+
 export interface ErrorFrame {
   code: string
   message: string

@@ -337,6 +337,19 @@ func (h *WebSocketHub) setupNATSSubscriptions(sub *ConversationSubscription) {
 	// Subscribe to messages (JetStream)
 	messageSubject := fmt.Sprintf("chat.conv.%s.msg", sub.ConversationID)
 	natsSub, err := h.natsConn.Conn.Subscribe(messageSubject, func(msg *natsgo.Msg) {
+		// Try to unmarshal as message deletion first
+		var deletionData models.WSMessageDeletedData
+		if err := json.Unmarshal(msg.Data, &deletionData); err == nil && deletionData.ID != 0 {
+			frame := &models.WSFrame{
+				Type: "message.deleted",
+				TS:   time.Now().UnixMilli(),
+				Data: deletionData,
+			}
+			h.broadcastToSubscription(sub, frame)
+			return
+		}
+
+		// Otherwise, try to unmarshal as new message
 		var messageData models.WSMessageNewData
 		if err := json.Unmarshal(msg.Data, &messageData); err != nil {
 			log.Printf("Failed to unmarshal message data: %v", err)

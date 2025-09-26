@@ -255,6 +255,19 @@ func (s *MessageService) DeleteMessage(ctx context.Context, messageID int64, use
 		return fmt.Errorf("message not found")
 	}
 
+	// Publish deletion event to WebSocket
+	deletionData := &models.WSMessageDeletedData{
+		ID:             message.ID,
+		ConversationID: message.ConversationID,
+		DeletedBy:      userID,
+	}
+
+	err = s.nats.PublishMessage(message.ConversationID, deletionData)
+	if err != nil {
+		// Log error but don't fail the request - message is already deleted
+		fmt.Printf("Failed to publish message deletion to NATS: %v\n", err)
+	}
+
 	return nil
 }
 

@@ -8,6 +8,7 @@ import type {
   ReceiptReadFrame,
   MessageAckFrame,
   MessageNewFrame,
+  MessageDeletedFrame,
   TypingUpdateEventFrame,
   ReceiptUpdateFrame,
   ErrorFrame,
@@ -18,6 +19,7 @@ type EventHandler<T = unknown> = (data: T) => void
 interface WebSocketEventHandlers {
   'message.ack': EventHandler<MessageAckFrame>
   'message.new': EventHandler<MessageNewFrame>
+  'message.deleted': EventHandler<MessageDeletedFrame>
   'typing.update': EventHandler<TypingUpdateEventFrame>
   'receipt.update': EventHandler<ReceiptUpdateFrame>
   'error': EventHandler<ErrorFrame>

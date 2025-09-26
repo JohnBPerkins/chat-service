@@ -146,6 +146,12 @@ type WSReceiptUpdateData struct {
 	MessageID      int64  `json:"messageId"`
 }
 
+type WSMessageDeletedData struct {
+	ID             int64  `json:"id"`
+	ConversationID string `json:"conversationId"`
+	DeletedBy      string `json:"deletedBy"`
+}
+
 type WSErrorData struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`

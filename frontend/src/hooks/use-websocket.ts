@@ -5,6 +5,7 @@ import { getChatWebSocket } from '@/lib/websocket'
 import type {
   MessageAckFrame,
   MessageNewFrame,
+  MessageDeletedFrame,
   TypingUpdateEventFrame,
   ReceiptUpdateFrame,
   ErrorFrame,
@@ -13,6 +14,7 @@ import type {
 interface UseWebSocketOptions {
   onMessageReceived?: (message: MessageNewFrame) => void
   onMessageAck?: (ack: MessageAckFrame) => void
+  onMessageDeleted?: (deletion: MessageDeletedFrame) => void
   onTypingUpdate?: (typing: TypingUpdateEventFrame) => void
   onReceiptUpdate?: (receipt: ReceiptUpdateFrame) => void
   onError?: (error: ErrorFrame) => void
@@ -73,6 +75,22 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       options.onMessageAck?.(data)
     })
 
+    ws.on('message.deleted', (data: MessageDeletedFrame) => {
+      console.log('Message deleted:', data)
+
+      // Invalidate and refetch messages for the conversation to remove the deleted message
+      queryClient.invalidateQueries({
+        queryKey: ['messages', data.conversationId]
+      })
+
+      // Update conversation list (may affect last message)
+      queryClient.invalidateQueries({
+        queryKey: ['conversations']
+      })
+
+      options.onMessageDeleted?.(data)
+    })
+
     ws.on('typing.update', (data: TypingUpdateEventFrame) => {
       console.log('Typing update:', data)
       options.onTypingUpdate?.(data)
@@ -102,6 +120,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       ws.off('reconnect')
       ws.off('message.new')
       ws.off('message.ack')
+      ws.off('message.deleted')
       ws.off('typing.update')
       ws.off('receipt.update')
       ws.off('error')
