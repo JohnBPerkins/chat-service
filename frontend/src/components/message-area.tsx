@@ -81,8 +81,14 @@ export function MessageArea({
   })
 
   const deleteMessageMutation = useMutation({
-    mutationFn: apiClient.deleteMessage,
+    mutationFn: async (messageId: number) => {
+      console.log('Calling deleteMessage API with ID:', messageId)
+      const result = await apiClient.deleteMessage(messageId)
+      console.log('Delete API result:', result)
+      return result
+    },
     onMutate: async (messageId: number) => {
+      console.log('onMutate called for messageId:', messageId)
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['messages', conversation.id, 'paginated'] })
 
@@ -106,10 +112,15 @@ export function MessageArea({
       return { previousMessages }
     },
     onError: (err, messageId, context) => {
+      console.error('Delete message error:', err)
       // If the mutation fails, use the context to roll back
       queryClient.setQueryData(['messages', conversation.id, 'paginated'], context?.previousMessages)
     },
+    onSuccess: (data, messageId) => {
+      console.log('Delete message success:', { data, messageId })
+    },
     onSettled: () => {
+      console.log('Delete message settled')
       // Always refetch after error or success
       queryClient.invalidateQueries({ queryKey: ['messages', conversation.id, 'paginated'] })
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
@@ -217,7 +228,10 @@ export function MessageArea({
   }
 
   const handleDeleteMessage = (messageId: number) => {
+    console.log('Delete message clicked:', messageId)
+    console.log('Current user email:', session?.user?.email)
     if (window.confirm('Are you sure you want to delete this message?')) {
+      console.log('User confirmed deletion, calling mutation...')
       deleteMessageMutation.mutate(messageId)
     }
   }
@@ -382,11 +396,13 @@ export function MessageArea({
 
             return messageGroups.map((group, groupIndex) => (
               <div key={`group-${groupIndex}`} className="group flex gap-3">
-                {/* Avatar */}
+                {/* Avatar - center vertically when single message, top-align when multiple */}
                 <img
                   src={group.sender?.avatarUrl || '/default-avatar.svg'}
                   alt={group.sender?.name || 'User'}
-                  className="h-10 w-10 flex-shrink-0 rounded-2xl"
+                  className={`h-10 w-10 flex-shrink-0 rounded-2xl ${
+                    group.messages.length === 1 ? 'self-center' : 'self-start'
+                  }`}
                   onError={e => {
                     e.currentTarget.src = '/default-avatar.svg'
                   }}
@@ -410,7 +426,16 @@ export function MessageArea({
                         <div className="flex items-start justify-between">
                           <p className="whitespace-pre-wrap text-white/90 flex-1">{message.body}</p>
                           {/* Delete button - only show for current user's messages */}
-                          {message.senderId === session?.user?.email && (
+                          {(() => {
+                            const shouldShow = message.senderId === session?.user?.email
+                            console.log('Delete button check:', {
+                              messageId: message.id,
+                              senderId: message.senderId,
+                              currentUserEmail: session?.user?.email,
+                              shouldShow
+                            })
+                            return shouldShow
+                          })() && (
                             <button
                               onClick={() => handleDeleteMessage(message.id)}
                               disabled={deleteMessageMutation.isPending}
