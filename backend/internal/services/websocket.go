@@ -35,12 +35,14 @@ type Client struct {
 }
 
 type ConversationSubscription struct {
-	ConversationID string
-	Clients        map[string]*Client
-	ClientsMu      sync.RWMutex
-	NATSSub        *natsgo.Subscription
-	TypingSub      *natsgo.Subscription
-	PresenceSub    *natsgo.Subscription
+	ConversationID      string
+	Clients             map[string]*Client
+	ClientsMu           sync.RWMutex
+	NATSSub             *natsgo.Subscription
+	TypingSub           *natsgo.Subscription
+	PresenceSub         *natsgo.Subscription
+	ParticipantSub      *natsgo.Subscription
+	ConversationSub     *natsgo.Subscription
 }
 
 func NewWebSocketHub(messageService *MessageService, natsConn *nats.NATSConnection) *WebSocketHub {
@@ -329,8 +331,12 @@ func (h *WebSocketHub) unsubscribeClient(client *Client, conversationID string) 
 		if sub.PresenceSub != nil {
 			sub.PresenceSub.Unsubscribe()
 		}
-		// Note: participant and conversation update subscriptions aren't stored in sub
-		// but they'll be automatically unsubscribed when the connection closes
+		if sub.ParticipantSub != nil {
+			sub.ParticipantSub.Unsubscribe()
+		}
+		if sub.ConversationSub != nil {
+			sub.ConversationSub.Unsubscribe()
+		}
 		delete(h.subscriptions, conversationID)
 	}
 }
@@ -435,6 +441,7 @@ func (h *WebSocketHub) setupNATSSubscriptions(sub *ConversationSubscription) {
 	if err != nil {
 		log.Printf("Failed to subscribe to participant updates: %v", err)
 	}
+	sub.ParticipantSub = participantSub
 
 	// Subscribe to conversation updates
 	conversationUpdateSubject := fmt.Sprintf("chat.conv.%s.updates", sub.ConversationID)
@@ -456,6 +463,7 @@ func (h *WebSocketHub) setupNATSSubscriptions(sub *ConversationSubscription) {
 	if err != nil {
 		log.Printf("Failed to subscribe to conversation updates: %v", err)
 	}
+	sub.ConversationSub = conversationUpdateSub
 }
 
 func (h *WebSocketHub) broadcastToSubscription(sub *ConversationSubscription, frame *models.WSFrame) {

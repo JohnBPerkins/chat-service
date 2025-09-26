@@ -129,3 +129,19 @@ func (nc *NATSConnection) PublishPresence(conversationID string, data interface{
 
 	return nil
 }
+
+// PublishToSubject publishes data to a specific NATS subject (ephemeral)
+func (nc *NATSConnection) PublishToSubject(subject string, data interface{}) error {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal data: %w", err)
+	}
+
+	// Use regular NATS publish for ephemeral data
+	err = nc.Conn.Publish(subject, jsonData)
+	if err != nil {
+		return fmt.Errorf("failed to publish to subject %s: %w", subject, err)
+	}
+
+	return nil
+}
