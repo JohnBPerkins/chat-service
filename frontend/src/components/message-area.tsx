@@ -314,50 +314,65 @@ export function MessageArea({
             </p>
           </div>
         ) : (
-          messages
-            .filter(message => message)
-            .map((message, index) => {
-              const filteredMessages = messages.filter(m => m)
+          (() => {
+            const filteredMessages = messages.filter(m => m)
+            const messageGroups: Array<{
+              sender: any
+              messages: any[]
+              firstMessageTime: string
+            }> = []
+
+            // Group consecutive messages by sender
+            filteredMessages.forEach((message, index) => {
               const previousMessage = index > 0 ? filteredMessages[index - 1] : null
-              const isFirstInGroup = !previousMessage || previousMessage.sender?.id !== message.sender?.id
+              const isNewGroup = !previousMessage || previousMessage.sender?.id !== message.sender?.id
 
-              return (
-                <div key={message.id} className={`group flex gap-3 ${!isFirstInGroup ? '-mt-1' : ''}`}>
-                  {/* Avatar - only show for first message in group */}
-                  {isFirstInGroup ? (
-                    <img
-                      src={message.sender?.avatarUrl || '/default-avatar.svg'}
-                      alt={message.sender?.name || 'User'}
-                      className="h-10 w-10 flex-shrink-0 rounded-2xl"
-                      onError={e => {
-                        e.currentTarget.src = '/default-avatar.svg'
-                      }}
-                    />
-                  ) : (
-                    <div className="w-10 flex-shrink-0" />
-                  )}
+              if (isNewGroup) {
+                messageGroups.push({
+                  sender: message.sender,
+                  messages: [message],
+                  firstMessageTime: message.createdAt
+                })
+              } else {
+                messageGroups[messageGroups.length - 1].messages.push(message)
+              }
+            })
 
-                  <div className="min-w-0 flex-1">
-                    {/* Header - only show for first message in group */}
-                    {isFirstInGroup && (
-                      <div className="mb-1 flex items-center gap-2">
-                        <span className="text-sm font-medium text-white">
-                          {message.sender?.name || 'Unknown User'}
-                        </span>
-                        <span className="text-xs text-white/50">
-                          {formatRelativeTime(new Date(message.createdAt))}
-                        </span>
+            return messageGroups.map((group, groupIndex) => (
+              <div key={`group-${groupIndex}`} className="group flex gap-3">
+                {/* Avatar */}
+                <img
+                  src={group.sender?.avatarUrl || '/default-avatar.svg'}
+                  alt={group.sender?.name || 'User'}
+                  className="h-10 w-10 flex-shrink-0 rounded-2xl"
+                  onError={e => {
+                    e.currentTarget.src = '/default-avatar.svg'
+                  }}
+                />
+
+                <div className="min-w-0 flex-1">
+                  {/* Header */}
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="text-sm font-medium text-white">
+                      {group.sender?.name || 'Unknown User'}
+                    </span>
+                    <span className="text-xs text-white/50">
+                      {formatRelativeTime(new Date(group.firstMessageTime))}
+                    </span>
+                  </div>
+
+                  {/* Single connected bubble for all messages in group */}
+                  <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
+                    {group.messages.map((message, messageIndex) => (
+                      <div key={message.id} className={`p-4 ${messageIndex > 0 ? 'border-t border-white/5' : ''}`}>
+                        <p className="whitespace-pre-wrap text-white/90">{message.body}</p>
                       </div>
-                    )}
-
-                    {/* Message bubble */}
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                      <p className="whitespace-pre-wrap text-white/90">{message.body}</p>
-                    </div>
+                    ))}
                   </div>
                 </div>
-              )
-            })
+              </div>
+            ))
+          })()
         )}
 
         {/* Typing Indicator */}
