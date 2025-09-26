@@ -59,20 +59,22 @@ export function ConversationSidebar({
           )}
         </div>
 
-        {/* Connection Status */}
-        <div className="flex items-center gap-2 text-sm">
-          {isConnected ? (
-            <div className="flex items-center gap-2 text-green-400">
-              <Wifi className="w-4 h-4" />
-              <span>Connected</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-red-400" title={connectionError || 'Disconnected'}>
-              <WifiOff className="w-4 h-4" />
-              <span>Offline</span>
-            </div>
-          )}
-        </div>
+        {/* Connection Status - only show when authenticated */}
+        {isAuthenticated && (
+          <div className="flex items-center gap-2 text-sm">
+            {isConnected ? (
+              <div className="flex items-center gap-2 text-green-400">
+                <Wifi className="w-4 h-4" />
+                <span>Connected</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-red-400" title={connectionError || 'Disconnected'}>
+                <WifiOff className="w-4 h-4" />
+                <span>Offline</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Conversations List */}
