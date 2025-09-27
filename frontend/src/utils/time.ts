@@ -2,7 +2,7 @@ import { formatDistanceToNow, differenceInMinutes } from 'date-fns'
 
 export function formatRelativeTime(date: Date): string {
   const now = new Date()
-  const diffInMinutes = differenceInMinutes(now, date)
+  const diffInMinutes = Math.abs(differenceInMinutes(now, date))
 
   // If less than 1 minute, show "now"
   if (diffInMinutes < 1) {

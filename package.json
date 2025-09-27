@@ -13,5 +13,8 @@
   ],
   "dependencies": {
     "next": "^15.0.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.1"
   }
 }
