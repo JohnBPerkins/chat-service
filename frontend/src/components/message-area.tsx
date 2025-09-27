@@ -439,7 +439,7 @@ export function MessageArea({
                       return (
                       <div key={message.id} className={`group/message ${paddingClass} hover:bg-white/5 transition-colors relative`}>
                         <div className="flex items-start justify-between min-w-0">
-                          <p className="whitespace-pre-wrap break-words text-white/90 flex-1 min-w-0 overflow-wrap-anywhere">{message.body}</p>
+                          <p className="whitespace-pre-wrap break-all text-white/90 flex-1 min-w-0" style={{wordBreak: 'break-word', overflowWrap: 'anywhere'}}>{message.body}</p>
                           {/* Delete button - only show for current user's messages */}
                           {(() => {
                             const shouldShow = message.senderId === session?.user?.email
