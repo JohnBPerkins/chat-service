@@ -418,7 +418,7 @@ export function MessageArea({
                   </div>
 
                   {/* Single connected bubble for all messages in group */}
-                  <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden min-w-0">
                     {group.messages.map((message, messageIndex) => {
                       // Fix padding for single vs multiple messages
                       let paddingClass = ''
@@ -438,8 +438,8 @@ export function MessageArea({
 
                       return (
                       <div key={message.id} className={`group/message ${paddingClass} hover:bg-white/5 transition-colors relative`}>
-                        <div className="flex items-start justify-between">
-                          <p className="whitespace-pre-wrap break-words text-white/90 flex-1">{message.body}</p>
+                        <div className="flex items-start justify-between min-w-0">
+                          <p className="whitespace-pre-wrap break-words text-white/90 flex-1 min-w-0 overflow-wrap-anywhere">{message.body}</p>
                           {/* Delete button - only show for current user's messages */}
                           {(() => {
                             const shouldShow = message.senderId === session?.user?.email

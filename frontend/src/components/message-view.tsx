@@ -241,7 +241,7 @@ export function MessageView({ conversation }: MessageViewProps) {
                     {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
                   </span>
                 </div>
-                <p className="text-sm whitespace-pre-wrap break-words text-gray-700">{message.body}</p>
+                <p className="text-sm whitespace-pre-wrap break-words text-gray-700 min-w-0 overflow-wrap-anywhere">{message.body}</p>
               </div>
             </div>
           ))
