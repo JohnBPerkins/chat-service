@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -91,7 +92,10 @@ func (c *Client) readPump() {
 	for {
 		_, messageBytes, err := c.Conn.Read(ctx)
 		if err != nil {
-			log.Printf("WebSocket read error: %v", err)
+			// Only log unexpected disconnections (not normal client closures)
+			if !isExpectedDisconnection(err) {
+				log.Printf("WebSocket read error: %v", err)
+			}
 			break
 		}
 
@@ -478,4 +482,13 @@ func (h *WebSocketHub) broadcastToSubscription(sub *ConversationSubscription, fr
 			delete(sub.Clients, client.ID)
 		}
 	}
+}
+
+// isExpectedDisconnection checks if the WebSocket error is from an expected client disconnection
+func isExpectedDisconnection(err error) bool {
+	errStr := err.Error()
+	return strings.Contains(errStr, "StatusGoingAway") ||
+		strings.Contains(errStr, "StatusNormalClosure") ||
+		strings.Contains(errStr, "connection closed") ||
+		strings.Contains(errStr, "status = StatusGoingAway")
 }
