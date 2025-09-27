@@ -69,7 +69,7 @@ func (h *WebSocketHub) HandleWebSocket(w http.ResponseWriter, r *http.Request, u
 		ID:            clientID,
 		UserID:        userID,
 		Conn:          conn,
-		Send:          make(chan *models.WSFrame, 256),
+		Send:          make(chan *models.WSFrame, 1024),
 		Hub:           h,
 		subscriptions: make(map[string]bool),
 	}
@@ -249,6 +249,7 @@ func (c *Client) sendFrame(frameType string, data interface{}) {
 	select {
 	case c.Send <- frame:
 	default:
+		log.Printf("WebSocket client %s send buffer full, closing connection", c.ID)
 		close(c.Send)
 	}
 }
@@ -478,6 +479,7 @@ func (h *WebSocketHub) broadcastToSubscription(sub *ConversationSubscription, fr
 		select {
 		case client.Send <- frame:
 		default:
+			log.Printf("WebSocket client %s send buffer full during broadcast, closing connection", client.ID)
 			close(client.Send)
 			delete(sub.Clients, client.ID)
 		}
