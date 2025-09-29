@@ -68,8 +68,8 @@ function Error({ statusCode, hasGetInitialPropsRun, err }: ErrorProps) {
             borderRadius: '0.5rem',
             transition: 'background-color 0.2s'
           }}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1d4ed8'}
-          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+          onMouseOver={(e: React.MouseEvent<HTMLAnchorElement>) => e.currentTarget.style.backgroundColor = '#1d4ed8'}
+          onMouseOut={(e: React.MouseEvent<HTMLAnchorElement>) => e.currentTarget.style.backgroundColor = '#2563eb'}
         >
           ← Go Home
         </Link>
