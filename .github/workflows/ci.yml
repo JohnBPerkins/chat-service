@@ -1,5 +1,9 @@
 name: CI
 
+permissions:
+  contents: read
+  security-events: write
+
 on:
   push:
     branches: [ main, develop ]
@@ -156,11 +160,6 @@ jobs:
         image: nats:latest
         ports:
           - 4222:4222
-        options: >-
-          --health-cmd "nats server check connection"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
     - uses: actions/checkout@v4
@@ -188,6 +187,14 @@ jobs:
     - name: Install backend dependencies
       working-directory: ./backend
       run: go mod download
+
+    - name: Wait for services to be ready
+      run: |
+        echo "Waiting for MongoDB..."
+        until nc -z localhost 27017; do sleep 1; done
+        echo "Waiting for NATS..."
+        until nc -z localhost 4222; do sleep 1; done
+        echo "Services are ready!"
 
     - name: Run integration tests
       working-directory: ./backend
