@@ -11,7 +11,7 @@ describe('formatRelativeTime', () => {
   })
 
   it('handles future dates', () => {
-    const future = new Date(Date.now() + 60 * 1000)
+    const future = new Date(Date.now() + 2 * 60 * 1000) // 2 minutes in future
     expect(formatRelativeTime(future)).toMatch(/in|from now/)
   })
 })
