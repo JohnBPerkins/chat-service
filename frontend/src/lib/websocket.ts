@@ -125,7 +125,6 @@ export class ChatWebSocket {
   private handleMessage(frame: WSFrame): void {
     const handler = this.eventHandlers[frame.type as keyof WebSocketEventHandlers]
     if (handler) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (handler as any)(frame.data)
     } else {
       console.warn('Unhandled WebSocket message type:', frame.type)

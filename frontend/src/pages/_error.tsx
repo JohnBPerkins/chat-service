@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { NextPageContext } from 'next'
 import { AppProps } from 'next/app'
+import Link from 'next/link'
 
 interface ErrorProps {
   statusCode?: number
@@ -54,7 +55,7 @@ function Error({ statusCode, hasGetInitialPropsRun, err }: ErrorProps) {
             : 'An error occurred while loading this page.'
           }
         </p>
-        <a
+        <Link
           href="/"
           style={{
             display: 'inline-flex',
@@ -71,7 +72,7 @@ function Error({ statusCode, hasGetInitialPropsRun, err }: ErrorProps) {
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
         >
           ← Go Home
-        </a>
+        </Link>
       </div>
     </div>
   )
