@@ -2,5 +2,5 @@
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/.next",
   "installCommand": "cd frontend && npm ci",
-  "ignoreCommand": "bash -c 'git diff HEAD^ HEAD --quiet -- frontend/ package-lock.json'"
+  "ignoreCommand": "bash frontend/vercel-ignore-build.sh"
 }
