@@ -31,13 +31,16 @@ func NewMessageService(db *database.MongoDB, natsConn *nats.NATSConnection, user
 
 func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessageRequest, senderID string) (*models.MessageWithSender, error) {
 	// Validate inputs
-	if err := validation.ValidateUserID(req.ConversationID); err != nil {
+	sanitizedConversationID, err := validation.ValidateUserID(req.ConversationID)
+	if err != nil {
 		return nil, fmt.Errorf("invalid conversation ID: %w", err)
 	}
-	if err := validation.ValidateUserID(senderID); err != nil {
+	sanitizedSenderID, err := validation.ValidateUserID(senderID)
+	if err != nil {
 		return nil, fmt.Errorf("invalid sender ID: %w", err)
 	}
-	if err := validation.ValidateUserID(req.ClientMsgID); err != nil {
+	sanitizedClientMsgID, err := validation.ValidateUserID(req.ClientMsgID)
+	if err != nil {
 		return nil, fmt.Errorf("invalid client message ID: %w", err)
 	}
 
@@ -54,9 +57,9 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 
 	message := &models.Message{
 		ID:             messageID,
-		ConversationID: req.ConversationID,
-		SenderID:       senderID,
-		ClientMsgID:    req.ClientMsgID,
+		ConversationID: sanitizedConversationID,
+		SenderID:       sanitizedSenderID,
+		ClientMsgID:    sanitizedClientMsgID,
 		Body:           sanitizedBody,
 		CreatedAt:      time.Now(),
 	}
@@ -69,9 +72,9 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 			// Find and return existing message
 			var existingMessage models.Message
 			filter := bson.D{
-				{Key: "conversationId", Value: req.ConversationID},
-				{Key: "senderId", Value: senderID},
-				{Key: "clientMsgId", Value: req.ClientMsgID},
+				{Key: "conversationId", Value: sanitizedConversationID},
+				{Key: "senderId", Value: sanitizedSenderID},
+				{Key: "clientMsgId", Value: sanitizedClientMsgID},
 			}
 			err := collection.FindOne(ctx, filter).Decode(&existingMessage)
 			if err != nil {
@@ -123,7 +126,7 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 		Sender:         messageWithSender.Sender,
 	}
 
-	err = s.nats.PublishMessage(req.ConversationID, wsMessageData)
+	err = s.nats.PublishMessage(sanitizedConversationID, wsMessageData)
 	if err != nil {
 		// Log error but don't fail the request - message is already persisted
 		fmt.Printf("Failed to publish message to NATS: %v\n", err)
@@ -134,7 +137,8 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 
 func (s *MessageService) GetMessages(ctx context.Context, conversationID string, before string, limit int) (*models.PaginatedMessagesResponse, error) {
 	// Validate conversation ID
-	if err := validation.ValidateUserID(conversationID); err != nil {
+	sanitizedConversationID, err := validation.ValidateUserID(conversationID)
+	if err != nil {
 		return nil, fmt.Errorf("invalid conversation ID: %w", err)
 	}
 
@@ -146,14 +150,14 @@ func (s *MessageService) GetMessages(ctx context.Context, conversationID string,
 		// For simplicity, assume it's a timestamp for now
 		if beforeTime, err := time.Parse(time.RFC3339, before); err == nil {
 			filter = bson.D{
-				{Key: "conversationId", Value: conversationID},
+				{Key: "conversationId", Value: sanitizedConversationID},
 				{Key: "createdAt", Value: bson.D{{Key: "$lt", Value: beforeTime}}},
 			}
 		} else {
-			filter = bson.D{{Key: "conversationId", Value: conversationID}}
+			filter = bson.D{{Key: "conversationId", Value: sanitizedConversationID}}
 		}
 	} else {
-		filter = bson.D{{Key: "conversationId", Value: conversationID}}
+		filter = bson.D{{Key: "conversationId", Value: sanitizedConversationID}}
 	}
 
 	// Set default limit
@@ -214,33 +218,35 @@ func (s *MessageService) GetMessages(ctx context.Context, conversationID string,
 
 func (s *MessageService) MarkMessageAsRead(ctx context.Context, conversationID, userID string, messageID int64) error {
 	// Validate inputs
-	if err := validation.ValidateUserID(conversationID); err != nil {
+	sanitizedConversationID, err := validation.ValidateUserID(conversationID)
+	if err != nil {
 		return fmt.Errorf("invalid conversation ID: %w", err)
 	}
-	if err := validation.ValidateUserID(userID); err != nil {
+	sanitizedUserID, err := validation.ValidateUserID(userID)
+	if err != nil {
 		return fmt.Errorf("invalid user ID: %w", err)
 	}
 
 	collection := s.db.DB.Collection("participants")
 
-	participantID := fmt.Sprintf("%s:%s", conversationID, userID)
+	participantID := fmt.Sprintf("%s:%s", sanitizedConversationID, sanitizedUserID)
 	filter := primitive.M{"_id": participantID}
 	update := bson.D{{Key: "$set", Value: bson.D{{Key: "lastReadMessageId", Value: messageID}}}}
 
-	_, err := collection.UpdateOne(ctx, filter, update)
+	_, err = collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("failed to update read receipt: %w", err)
 	}
 
 	// Publish read receipt update
 	receiptData := &models.WSReceiptUpdateData{
-		ConversationID: conversationID,
-		UserID:         userID,
+		ConversationID: sanitizedConversationID,
+		UserID:         sanitizedUserID,
 		MessageID:      messageID,
 	}
 
 	// Publish to ephemeral subject (not JetStream)
-	err = s.nats.PublishPresence(conversationID, receiptData)
+	err = s.nats.PublishPresence(sanitizedConversationID, receiptData)
 	if err != nil {
 		fmt.Printf("Failed to publish read receipt: %v\n", err)
 	}
@@ -250,26 +256,29 @@ func (s *MessageService) MarkMessageAsRead(ctx context.Context, conversationID, 
 
 func (s *MessageService) PublishTypingIndicator(conversationID, userID string, isTyping bool) error {
 	// Validate inputs
-	if err := validation.ValidateUserID(conversationID); err != nil {
+	sanitizedConversationID, err := validation.ValidateUserID(conversationID)
+	if err != nil {
 		return fmt.Errorf("invalid conversation ID: %w", err)
 	}
-	if err := validation.ValidateUserID(userID); err != nil {
+	sanitizedUserID, err := validation.ValidateUserID(userID)
+	if err != nil {
 		return fmt.Errorf("invalid user ID: %w", err)
 	}
 
 	typingData := &models.WSTypingUpdateEventData{
-		ConversationID: conversationID,
-		UserID:         userID,
+		ConversationID: sanitizedConversationID,
+		UserID:         sanitizedUserID,
 		IsTyping:       isTyping,
 	}
 
-	return s.nats.PublishTyping(conversationID, typingData)
+	return s.nats.PublishTyping(sanitizedConversationID, typingData)
 }
 
 // DeleteMessage deletes a message if the user is the sender
 func (s *MessageService) DeleteMessage(ctx context.Context, messageID int64, userID string) error {
 	// Validate user ID
-	if err := validation.ValidateUserID(userID); err != nil {
+	sanitizedUserID, err := validation.ValidateUserID(userID)
+	if err != nil {
 		return fmt.Errorf("invalid user ID: %w", err)
 	}
 
@@ -277,7 +286,7 @@ func (s *MessageService) DeleteMessage(ctx context.Context, messageID int64, use
 
 	// First, find the message to verify ownership
 	var message models.Message
-	err := collection.FindOne(ctx, primitive.M{"_id": messageID}).Decode(&message)
+	err = collection.FindOne(ctx, primitive.M{"_id": messageID}).Decode(&message)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return fmt.Errorf("message not found")
@@ -286,7 +295,7 @@ func (s *MessageService) DeleteMessage(ctx context.Context, messageID int64, use
 	}
 
 	// Check if the user is the sender
-	if message.SenderID != userID {
+	if message.SenderID != sanitizedUserID {
 		return fmt.Errorf("user not authorized to delete this message")
 	}
 
@@ -304,7 +313,7 @@ func (s *MessageService) DeleteMessage(ctx context.Context, messageID int64, use
 	deletionData := &models.WSMessageDeletedData{
 		ID:             message.ID,
 		ConversationID: message.ConversationID,
-		DeletedBy:      userID,
+		DeletedBy:      sanitizedUserID,
 	}
 
 	err = s.nats.PublishMessage(message.ConversationID, deletionData)

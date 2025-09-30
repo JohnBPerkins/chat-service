@@ -44,18 +44,20 @@ func TestValidateUserID(t *testing.T) {
 		},
 		{
 			name:    "user ID with special characters",
-			userID:  "user@123.com",
+			userID:  "user#123",
 			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateUserID(tt.userID)
+			sanitized, err := ValidateUserID(tt.userID)
 			if tt.wantErr {
 				assert.Error(t, err)
+				assert.Empty(t, sanitized)
 			} else {
 				assert.NoError(t, err)
+				assert.Equal(t, tt.userID, sanitized)
 			}
 		})
 	}
@@ -111,11 +113,13 @@ func TestValidateEmail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateEmail(tt.email)
+			sanitized, err := ValidateEmail(tt.email)
 			if tt.wantErr {
 				assert.Error(t, err)
+				assert.Empty(t, sanitized)
 			} else {
 				assert.NoError(t, err)
+				assert.Equal(t, tt.email, sanitized)
 			}
 		})
 	}

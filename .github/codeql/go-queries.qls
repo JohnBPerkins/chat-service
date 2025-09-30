@@ -1,0 +1,2 @@
+# CodeQL query suite for Go
+- description: Security queries for Go with custom sanitizers

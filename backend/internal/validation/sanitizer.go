@@ -15,45 +15,50 @@ var (
 
 // ValidateUserID validates and sanitizes user IDs
 // User IDs should be alphanumeric with limited special characters
-func ValidateUserID(userID string) error {
+// This function acts as a sanitization barrier for NoSQL injection
+// Returns the sanitized user ID to ensure CodeQL tracks the sanitization
+func ValidateUserID(userID string) (string, error) {
 	if userID == "" {
-		return fmt.Errorf("%w: user ID cannot be empty", ErrInvalidInput)
+		return "", fmt.Errorf("%w: user ID cannot be empty", ErrInvalidInput)
 	}
 
 	if len(userID) > 255 {
-		return fmt.Errorf("%w: user ID too long (max 255 chars)", ErrInputTooLong)
+		return "", fmt.Errorf("%w: user ID too long (max 255 chars)", ErrInputTooLong)
 	}
 
-	// Allow alphanumeric, hyphens, underscores only
-	if matched, _ := regexp.MatchString(`^[a-zA-Z0-9_-]+$`, userID); !matched {
-		return fmt.Errorf("%w: user ID contains invalid characters", ErrInvalidFormat)
+	// Allow alphanumeric, hyphens, underscores, dots, @ for emails only
+	if matched, _ := regexp.MatchString(`^[a-zA-Z0-9_@.:-]+$`, userID); !matched {
+		return "", fmt.Errorf("%w: user ID contains invalid characters", ErrInvalidFormat)
 	}
 
-	return nil
+	// Return the validated ID (same as input since it passed validation)
+	return userID, nil
 }
 
 // ValidateEmail validates email format and prevents injection
-func ValidateEmail(email string) error {
+// Returns the sanitized email to ensure CodeQL tracks the sanitization
+func ValidateEmail(email string) (string, error) {
 	if email == "" {
-		return fmt.Errorf("%w: email cannot be empty", ErrInvalidInput)
+		return "", fmt.Errorf("%w: email cannot be empty", ErrInvalidInput)
 	}
 
 	if len(email) > 320 { // RFC 5321 limit
-		return fmt.Errorf("%w: email too long (max 320 chars)", ErrInputTooLong)
+		return "", fmt.Errorf("%w: email too long (max 320 chars)", ErrInputTooLong)
 	}
 
 	// Basic email regex - more restrictive for security
 	emailRegex := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
 	if matched, _ := regexp.MatchString(emailRegex, email); !matched {
-		return fmt.Errorf("%w: invalid email format", ErrInvalidFormat)
+		return "", fmt.Errorf("%w: invalid email format", ErrInvalidFormat)
 	}
 
 	// Check for MongoDB operators and injection patterns
 	if containsNoSQLOperators(email) {
-		return fmt.Errorf("%w: email contains prohibited characters", ErrInvalidInput)
+		return "", fmt.Errorf("%w: email contains prohibited characters", ErrInvalidInput)
 	}
 
-	return nil
+	// Return the validated email
+	return email, nil
 }
 
 // containsNoSQLOperators checks for common NoSQL injection patterns

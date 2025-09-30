@@ -32,7 +32,8 @@ func NewConversationService(db *database.MongoDB, userService *UserService, nats
 
 func (s *ConversationService) CreateConversation(ctx context.Context, req *models.CreateConversationRequest, creatorID string) (*models.Conversation, error) {
 	// Validate creator ID
-	if err := validation.ValidateUserID(creatorID); err != nil {
+	sanitizedCreatorID, err := validation.ValidateUserID(creatorID)
+	if err != nil {
 		return nil, fmt.Errorf("invalid creator ID: %w", err)
 	}
 
@@ -43,10 +44,13 @@ func (s *ConversationService) CreateConversation(ctx context.Context, req *model
 	}
 
 	// Validate all member IDs
-	for _, memberID := range req.Members {
-		if err := validation.ValidateUserID(memberID); err != nil {
+	sanitizedMemberIDs := make([]string, len(req.Members))
+	for i, memberID := range req.Members {
+		sanitizedMemberID, err := validation.ValidateUserID(memberID)
+		if err != nil {
 			return nil, fmt.Errorf("invalid member ID %s: %w", memberID, err)
 		}
+		sanitizedMemberIDs[i] = sanitizedMemberID
 	}
 
 	conversationsCollection := s.db.DB.Collection("conversations")
@@ -68,9 +72,9 @@ func (s *ConversationService) CreateConversation(ctx context.Context, req *model
 
 	// Add creator as admin participant
 	creatorParticipant := &models.Participant{
-		ID:             fmt.Sprintf("%s:%s", conversation.ID, creatorID),
+		ID:             fmt.Sprintf("%s:%s", conversation.ID, sanitizedCreatorID),
 		ConversationID: conversation.ID,
-		UserID:         creatorID,
+		UserID:         sanitizedCreatorID,
 		Role:           "admin",
 		JoinedAt:       time.Now(),
 	}
@@ -81,8 +85,8 @@ func (s *ConversationService) CreateConversation(ctx context.Context, req *model
 	}
 
 	// Add other members
-	for _, memberID := range req.Members {
-		if memberID == creatorID {
+	for _, memberID := range sanitizedMemberIDs {
+		if memberID == sanitizedCreatorID {
 			continue // Skip creator
 		}
 
