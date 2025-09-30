@@ -71,16 +71,20 @@ Multiple origins should be comma-separated.
 ## Service Configuration
 
 ### railway-api.toml
-- Builds from `backend/Dockerfile.api`
+- Sets `dockerContext = "backend"` to use backend directory as build context
+- Builds from `Dockerfile.api` (relative to backend directory)
 - Runs the REST API server
 - Health check at `/healthz`
 - Default port: 8080
 
 ### railway-ws.toml
-- Builds from `backend/Dockerfile.ws`
+- Sets `dockerContext = "backend"` to use backend directory as build context
+- Builds from `Dockerfile.ws` (relative to backend directory)
 - Runs the WebSocket server
 - Health check at `/healthz` (includes connection count)
 - Default port: 8081
+
+**Note**: The `dockerContext` setting tells Railway to change to the `backend/` directory before building, so Dockerfile paths are relative to that context.
 
 ## Monitoring
 

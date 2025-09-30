@@ -109,12 +109,23 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Build backend image
+    - name: Build REST API image
       uses: docker/build-push-action@v5
       with:
         context: ./backend
+        file: ./backend/Dockerfile.api
         push: false
-        tags: chat-service-backend:test
+        tags: chat-service-api:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build WebSocket image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        file: ./backend/Dockerfile.ws
+        push: false
+        tags: chat-service-websocket:test
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
