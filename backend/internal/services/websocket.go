@@ -486,6 +486,13 @@ func (h *WebSocketHub) broadcastToSubscription(sub *ConversationSubscription, fr
 	}
 }
 
+// ConnectionCount returns the current number of active WebSocket connections
+func (h *WebSocketHub) ConnectionCount() int {
+	h.clientsMu.RLock()
+	defer h.clientsMu.RUnlock()
+	return len(h.clients)
+}
+
 // isExpectedDisconnection checks if the WebSocket error is from an expected client disconnection
 func isExpectedDisconnection(err error) bool {
 	errStr := err.Error()

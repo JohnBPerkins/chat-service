@@ -31,11 +31,12 @@ services:
     networks:
       - chat-network
 
-  # Go backend API
-  backend:
+  # REST API Server
+  api:
     build:
       context: ./backend
-    container_name: chat-backend
+      dockerfile: Dockerfile.api
+    container_name: chat-api
     restart: unless-stopped
     environment:
       - PORT=8080
@@ -45,6 +46,27 @@ services:
       - ALLOWED_ORIGINS=http://localhost:3000
     ports:
       - "8080:8080"
+    depends_on:
+      - mongodb
+      - nats
+    networks:
+      - chat-network
+
+  # WebSocket Server
+  websocket:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.ws
+    container_name: chat-websocket
+    restart: unless-stopped
+    environment:
+      - PORT=8081
+      - MONGODB_URI=mongodb://mongodb:27017
+      - DATABASE_NAME=chat_service
+      - NATS_URL=nats://nats:4222
+      - ALLOWED_ORIGINS=http://localhost:3000
+    ports:
+      - "8082:8081"  # Map to 8082 on host to avoid conflict with mongo-express
     depends_on:
       - mongodb
       - nats
@@ -64,11 +86,12 @@ services:
       - GITHUB_ID=${GITHUB_ID}
       - GITHUB_SECRET=${GITHUB_SECRET}
       - NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
-      - NEXT_PUBLIC_WS_URL=ws://localhost:8080
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8082
     ports:
       - "3000:3000"
     depends_on:
-      - backend
+      - api
+      - websocket
     networks:
       - chat-network
     volumes:
