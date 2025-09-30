@@ -91,8 +91,8 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 				CreatedAt:      existingMessage.CreatedAt,
 			}
 
-			// Fetch sender information - SenderID is actually an email
-			if sender, err := s.userService.GetUserByEmail(ctx, existingMessage.SenderID); err == nil {
+			// Fetch sender information
+			if sender, err := s.userService.GetUserByID(ctx, existingMessage.SenderID); err == nil {
 				messageWithSender.Sender = sender
 			}
 
@@ -111,25 +111,27 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 		CreatedAt:      message.CreatedAt,
 	}
 
-	// Fetch sender information - SenderID is actually an email
-	if sender, err := s.userService.GetUserByEmail(ctx, message.SenderID); err == nil {
+	// Fetch sender information
+	if sender, err := s.userService.GetUserByID(ctx, message.SenderID); err == nil {
 		messageWithSender.Sender = sender
 	}
 
-	// Publish to NATS JetStream
-	wsMessageData := &models.WSMessageNewData{
-		ID:             message.ID,
-		ConversationID: message.ConversationID,
-		SenderID:       message.SenderID,
-		Body:           sanitizedBody,
-		CreatedAt:      message.CreatedAt,
-		Sender:         messageWithSender.Sender,
-	}
+	// Publish to NATS JetStream (if NATS is available)
+	if s.nats != nil {
+		wsMessageData := &models.WSMessageNewData{
+			ID:             message.ID,
+			ConversationID: message.ConversationID,
+			SenderID:       message.SenderID,
+			Body:           sanitizedBody,
+			CreatedAt:      message.CreatedAt,
+			Sender:         messageWithSender.Sender,
+		}
 
-	err = s.nats.PublishMessage(sanitizedConversationID, wsMessageData)
-	if err != nil {
-		// Log error but don't fail the request - message is already persisted
-		fmt.Printf("Failed to publish message to NATS: %v\n", err)
+		err = s.nats.PublishMessage(sanitizedConversationID, wsMessageData)
+		if err != nil {
+			// Log error but don't fail the request - message is already persisted
+			fmt.Printf("Failed to publish message to NATS: %v\n", err)
+		}
 	}
 
 	return messageWithSender, nil
@@ -197,8 +199,8 @@ func (s *MessageService) GetMessages(ctx context.Context, conversationID string,
 			CreatedAt:      msg.CreatedAt,
 		}
 
-		// Fetch sender information - SenderID is actually an email
-		if sender, err := s.userService.GetUserByEmail(ctx, msg.SenderID); err == nil {
+		// Fetch sender information
+		if sender, err := s.userService.GetUserByID(ctx, msg.SenderID); err == nil {
 			messagesWithSender[i].Sender = sender
 		}
 		// If user fetch fails, sender will be nil and frontend should handle it gracefully
@@ -238,17 +240,19 @@ func (s *MessageService) MarkMessageAsRead(ctx context.Context, conversationID, 
 		return fmt.Errorf("failed to update read receipt: %w", err)
 	}
 
-	// Publish read receipt update
-	receiptData := &models.WSReceiptUpdateData{
-		ConversationID: sanitizedConversationID,
-		UserID:         sanitizedUserID,
-		MessageID:      messageID,
-	}
+	// Publish read receipt update (if NATS is available)
+	if s.nats != nil {
+		receiptData := &models.WSReceiptUpdateData{
+			ConversationID: sanitizedConversationID,
+			UserID:         sanitizedUserID,
+			MessageID:      messageID,
+		}
 
-	// Publish to ephemeral subject (not JetStream)
-	err = s.nats.PublishPresence(sanitizedConversationID, receiptData)
-	if err != nil {
-		fmt.Printf("Failed to publish read receipt: %v\n", err)
+		// Publish to ephemeral subject (not JetStream)
+		err = s.nats.PublishPresence(sanitizedConversationID, receiptData)
+		if err != nil {
+			fmt.Printf("Failed to publish read receipt: %v\n", err)
+		}
 	}
 
 	return nil
@@ -263,6 +267,10 @@ func (s *MessageService) PublishTypingIndicator(conversationID, userID string, i
 	sanitizedUserID, err := validation.ValidateUserID(userID)
 	if err != nil {
 		return fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	if s.nats == nil {
+		return fmt.Errorf("NATS connection not available")
 	}
 
 	typingData := &models.WSTypingUpdateEventData{
@@ -309,17 +317,19 @@ func (s *MessageService) DeleteMessage(ctx context.Context, messageID int64, use
 		return fmt.Errorf("message not found")
 	}
 
-	// Publish deletion event to WebSocket
-	deletionData := &models.WSMessageDeletedData{
-		ID:             message.ID,
-		ConversationID: message.ConversationID,
-		DeletedBy:      sanitizedUserID,
-	}
+	// Publish deletion event to WebSocket (if NATS is available)
+	if s.nats != nil {
+		deletionData := &models.WSMessageDeletedData{
+			ID:             message.ID,
+			ConversationID: message.ConversationID,
+			DeletedBy:      sanitizedUserID,
+		}
 
-	err = s.nats.PublishMessage(message.ConversationID, deletionData)
-	if err != nil {
-		// Log error but don't fail the request - message is already deleted
-		fmt.Printf("Failed to publish message deletion to NATS: %v\n", err)
+		err = s.nats.PublishMessage(message.ConversationID, deletionData)
+		if err != nil {
+			// Log error but don't fail the request - message is already deleted
+			fmt.Printf("Failed to publish message deletion to NATS: %v\n", err)
+		}
 	}
 
 	return nil

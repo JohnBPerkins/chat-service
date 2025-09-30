@@ -108,11 +108,17 @@ func (s *ConversationService) CreateConversation(ctx context.Context, req *model
 }
 
 func (s *ConversationService) GetUserConversations(ctx context.Context, userID string) ([]models.ConversationWithParticipants, error) {
+	// Validate user ID
+	sanitizedUserID, err := validation.ValidateUserID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID: %w", err)
+	}
+
 	participantsCollection := s.db.DB.Collection("participants")
 	conversationsCollection := s.db.DB.Collection("conversations")
 
 	// Find all conversations where user is a participant
-	cursor, err := participantsCollection.Find(ctx, bson.M{"userId": userID})
+	cursor, err := participantsCollection.Find(ctx, bson.M{"userId": sanitizedUserID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user participations: %w", err)
 	}
@@ -173,10 +179,10 @@ func (s *ConversationService) GetUserConversations(ctx context.Context, userID s
 		}
 		participantCursor.Close(ctx)
 
-		// Populate user info for each participant - UserID is actually an email
+		// Populate user info for each participant
 		participantUsers := make([]models.User, 0, len(convParticipants))
 		for _, p := range convParticipants {
-			if user, err := s.userService.GetUserByEmail(ctx, p.UserID); err == nil {
+			if user, err := s.userService.GetUserByID(ctx, p.UserID); err == nil {
 				participantUsers = append(participantUsers, *user)
 			}
 		}
@@ -210,7 +216,7 @@ func (s *ConversationService) GetConversationParticipants(ctx context.Context, c
 	// Get user info for each participant
 	users := make([]models.User, 0, len(participants))
 	for _, p := range participants {
-		if user, err := s.userService.GetUserByEmail(ctx, p.UserID); err == nil {
+		if user, err := s.userService.GetUserByID(ctx, p.UserID); err == nil {
 			users = append(users, *user)
 		}
 	}
@@ -225,11 +231,17 @@ func (s *ConversationService) UpdateConversationTitle(ctx context.Context, conve
 		return fmt.Errorf("user not authorized to update conversation")
 	}
 
+	// Sanitize new title
+	sanitizedTitle, err := validation.SanitizeString(newTitle, 200)
+	if err != nil {
+		return fmt.Errorf("invalid title: %w", err)
+	}
+
 	conversationsCollection := s.db.DB.Collection("conversations")
 
 	// Update the conversation title
 	filter := bson.M{"_id": conversationID}
-	update := bson.D{{Key: "$set", Value: bson.D{{Key: "title", Value: newTitle}}}}
+	update := bson.D{{Key: "$set", Value: bson.D{{Key: "title", Value: sanitizedTitle}}}}
 
 	result, err := conversationsCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
@@ -240,17 +252,19 @@ func (s *ConversationService) UpdateConversationTitle(ctx context.Context, conve
 		return fmt.Errorf("conversation not found")
 	}
 
-	// Publish WebSocket event
-	conversationUpdateData := &models.WSConversationUpdateData{
-		ConversationID: conversationID,
-		Title:          newTitle,
-		UpdateType:     "title",
-		UpdatedBy:      userID,
-	}
+	// Publish WebSocket event (if NATS is available)
+	if s.nats != nil {
+		conversationUpdateData := &models.WSConversationUpdateData{
+			ConversationID: conversationID,
+			Title:          newTitle,
+			UpdateType:     "title",
+			UpdatedBy:      userID,
+		}
 
-	subject := fmt.Sprintf("chat.conv.%s.updates", conversationID)
-	if err := s.nats.PublishToSubject(subject, conversationUpdateData); err != nil {
-		log.Printf("Failed to publish conversation title update event: %v", err)
+		subject := fmt.Sprintf("chat.conv.%s.updates", conversationID)
+		if err := s.nats.PublishToSubject(subject, conversationUpdateData); err != nil {
+			log.Printf("Failed to publish conversation title update event: %v", err)
+		}
 	}
 
 	return nil
@@ -314,7 +328,7 @@ func (s *ConversationService) RemoveParticipant(ctx context.Context, conversatio
 	}
 
 	// Get user info for WebSocket event
-	user, err := s.userService.GetUserByEmail(ctx, targetUserID)
+	user, err := s.userService.GetUserByID(ctx, targetUserID)
 	if err != nil {
 		return fmt.Errorf("failed to get user info: %w", err)
 	}
@@ -329,18 +343,20 @@ func (s *ConversationService) RemoveParticipant(ctx context.Context, conversatio
 		return fmt.Errorf("participant not found")
 	}
 
-	// Publish WebSocket event
-	participantUpdateData := &models.WSParticipantUpdateData{
-		ConversationID: conversationID,
-		UserID:         targetUserID,
-		Action:         "removed",
-		User:           user,
-		UpdatedBy:      requesterID,
-	}
+	// Publish WebSocket event (if NATS is available)
+	if s.nats != nil {
+		participantUpdateData := &models.WSParticipantUpdateData{
+			ConversationID: conversationID,
+			UserID:         targetUserID,
+			Action:         "removed",
+			User:           user,
+			UpdatedBy:      requesterID,
+		}
 
-	subject := fmt.Sprintf("chat.conv.%s.participants", conversationID)
-	if err := s.nats.PublishToSubject(subject, participantUpdateData); err != nil {
-		log.Printf("Failed to publish participant removal event: %v", err)
+		subject := fmt.Sprintf("chat.conv.%s.participants", conversationID)
+		if err := s.nats.PublishToSubject(subject, participantUpdateData); err != nil {
+			log.Printf("Failed to publish participant removal event: %v", err)
+		}
 	}
 
 	return nil
