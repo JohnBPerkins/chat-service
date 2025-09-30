@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/JohnBPerkins/chat-service/backend/internal/models"
+	"github.com/JohnBPerkins/chat-service/backend/internal/validation"
 	"github.com/JohnBPerkins/chat-service/backend/pkg/database"
 	"github.com/JohnBPerkins/chat-service/backend/pkg/nats"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -28,6 +30,23 @@ func NewMessageService(db *database.MongoDB, natsConn *nats.NATSConnection, user
 }
 
 func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessageRequest, senderID string) (*models.MessageWithSender, error) {
+	// Validate inputs
+	if err := validation.ValidateUserID(req.ConversationID); err != nil {
+		return nil, fmt.Errorf("invalid conversation ID: %w", err)
+	}
+	if err := validation.ValidateUserID(senderID); err != nil {
+		return nil, fmt.Errorf("invalid sender ID: %w", err)
+	}
+	if err := validation.ValidateUserID(req.ClientMsgID); err != nil {
+		return nil, fmt.Errorf("invalid client message ID: %w", err)
+	}
+
+	// Sanitize message body
+	sanitizedBody, err := validation.SanitizeString(req.Body, 10000) // Allow longer messages
+	if err != nil {
+		return nil, fmt.Errorf("invalid message body: %w", err)
+	}
+
 	collection := s.db.DB.Collection("messages")
 
 	// Generate snowflake ID (simplified version)
@@ -38,12 +57,12 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 		ConversationID: req.ConversationID,
 		SenderID:       senderID,
 		ClientMsgID:    req.ClientMsgID,
-		Body:           req.Body,
+		Body:           sanitizedBody,
 		CreatedAt:      time.Now(),
 	}
 
 	// Insert message with idempotency check
-	_, err := collection.InsertOne(ctx, message)
+	_, err = collection.InsertOne(ctx, message)
 	if err != nil {
 		// Check if it's a duplicate key error (idempotency)
 		if mongo.IsDuplicateKeyError(err) {
@@ -85,7 +104,7 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 		ConversationID: message.ConversationID,
 		SenderID:       message.SenderID,
 		ClientMsgID:    message.ClientMsgID,
-		Body:           message.Body,
+		Body:           sanitizedBody,
 		CreatedAt:      message.CreatedAt,
 	}
 
@@ -99,7 +118,7 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 		ID:             message.ID,
 		ConversationID: message.ConversationID,
 		SenderID:       message.SenderID,
-		Body:           message.Body,
+		Body:           sanitizedBody,
 		CreatedAt:      message.CreatedAt,
 		Sender:         messageWithSender.Sender,
 	}
@@ -114,6 +133,11 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 }
 
 func (s *MessageService) GetMessages(ctx context.Context, conversationID string, before string, limit int) (*models.PaginatedMessagesResponse, error) {
+	// Validate conversation ID
+	if err := validation.ValidateUserID(conversationID); err != nil {
+		return nil, fmt.Errorf("invalid conversation ID: %w", err)
+	}
+
 	collection := s.db.DB.Collection("messages")
 
 	var filter bson.D
@@ -189,10 +213,18 @@ func (s *MessageService) GetMessages(ctx context.Context, conversationID string,
 }
 
 func (s *MessageService) MarkMessageAsRead(ctx context.Context, conversationID, userID string, messageID int64) error {
+	// Validate inputs
+	if err := validation.ValidateUserID(conversationID); err != nil {
+		return fmt.Errorf("invalid conversation ID: %w", err)
+	}
+	if err := validation.ValidateUserID(userID); err != nil {
+		return fmt.Errorf("invalid user ID: %w", err)
+	}
+
 	collection := s.db.DB.Collection("participants")
 
 	participantID := fmt.Sprintf("%s:%s", conversationID, userID)
-	filter := bson.M{"_id": participantID}
+	filter := primitive.M{"_id": participantID}
 	update := bson.D{{Key: "$set", Value: bson.D{{Key: "lastReadMessageId", Value: messageID}}}}
 
 	_, err := collection.UpdateOne(ctx, filter, update)
@@ -217,6 +249,14 @@ func (s *MessageService) MarkMessageAsRead(ctx context.Context, conversationID, 
 }
 
 func (s *MessageService) PublishTypingIndicator(conversationID, userID string, isTyping bool) error {
+	// Validate inputs
+	if err := validation.ValidateUserID(conversationID); err != nil {
+		return fmt.Errorf("invalid conversation ID: %w", err)
+	}
+	if err := validation.ValidateUserID(userID); err != nil {
+		return fmt.Errorf("invalid user ID: %w", err)
+	}
+
 	typingData := &models.WSTypingUpdateEventData{
 		ConversationID: conversationID,
 		UserID:         userID,
@@ -228,11 +268,16 @@ func (s *MessageService) PublishTypingIndicator(conversationID, userID string, i
 
 // DeleteMessage deletes a message if the user is the sender
 func (s *MessageService) DeleteMessage(ctx context.Context, messageID int64, userID string) error {
+	// Validate user ID
+	if err := validation.ValidateUserID(userID); err != nil {
+		return fmt.Errorf("invalid user ID: %w", err)
+	}
+
 	collection := s.db.DB.Collection("messages")
 
 	// First, find the message to verify ownership
 	var message models.Message
-	err := collection.FindOne(ctx, bson.M{"_id": messageID}).Decode(&message)
+	err := collection.FindOne(ctx, primitive.M{"_id": messageID}).Decode(&message)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return fmt.Errorf("message not found")
@@ -246,7 +291,7 @@ func (s *MessageService) DeleteMessage(ctx context.Context, messageID int64, use
 	}
 
 	// Delete the message
-	result, err := collection.DeleteOne(ctx, bson.M{"_id": messageID})
+	result, err := collection.DeleteOne(ctx, primitive.M{"_id": messageID})
 	if err != nil {
 		return fmt.Errorf("failed to delete message: %w", err)
 	}

@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/JohnBPerkins/chat-service/backend/internal/models"
+	"github.com/JohnBPerkins/chat-service/backend/internal/validation"
 	"github.com/JohnBPerkins/chat-service/backend/pkg/database"
 	"github.com/JohnBPerkins/chat-service/backend/pkg/nats"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -29,6 +31,24 @@ func NewConversationService(db *database.MongoDB, userService *UserService, nats
 }
 
 func (s *ConversationService) CreateConversation(ctx context.Context, req *models.CreateConversationRequest, creatorID string) (*models.Conversation, error) {
+	// Validate creator ID
+	if err := validation.ValidateUserID(creatorID); err != nil {
+		return nil, fmt.Errorf("invalid creator ID: %w", err)
+	}
+
+	// Sanitize and validate title
+	sanitizedTitle, err := validation.SanitizeString(req.Title, 200)
+	if err != nil {
+		return nil, fmt.Errorf("invalid title: %w", err)
+	}
+
+	// Validate all member IDs
+	for _, memberID := range req.Members {
+		if err := validation.ValidateUserID(memberID); err != nil {
+			return nil, fmt.Errorf("invalid member ID %s: %w", memberID, err)
+		}
+	}
+
 	conversationsCollection := s.db.DB.Collection("conversations")
 	participantsCollection := s.db.DB.Collection("participants")
 
@@ -36,12 +56,12 @@ func (s *ConversationService) CreateConversation(ctx context.Context, req *model
 	conversation := &models.Conversation{
 		ID:            generateUUID(),
 		Kind:          req.Kind,
-		Title:         req.Title,
+		Title:         sanitizedTitle,
 		CreatedAt:     time.Now(),
 		LastMessageAt: time.Now(),
 	}
 
-	_, err := conversationsCollection.InsertOne(ctx, conversation)
+	_, err = conversationsCollection.InsertOne(ctx, conversation)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create conversation: %w", err)
 	}
@@ -284,7 +304,7 @@ func (s *ConversationService) RemoveParticipant(ctx context.Context, conversatio
 	// Get participant info before deletion for WebSocket event
 	participantID := fmt.Sprintf("%s:%s", conversationID, targetUserID)
 	var participant models.Participant
-	err = participantsCollection.FindOne(ctx, bson.M{"_id": participantID}).Decode(&participant)
+	err = participantsCollection.FindOne(ctx, primitive.M{"_id": participantID}).Decode(&participant)
 	if err != nil {
 		return fmt.Errorf("participant not found")
 	}
@@ -389,7 +409,7 @@ func (s *ConversationService) DeleteConversation(ctx context.Context, conversati
 	participantID := fmt.Sprintf("%s:%s", conversationID, userID)
 
 	var participant models.Participant
-	err = participantsCollection.FindOne(ctx, bson.M{"_id": participantID}).Decode(&participant)
+	err = participantsCollection.FindOne(ctx, primitive.M{"_id": participantID}).Decode(&participant)
 	if err != nil {
 		return fmt.Errorf("failed to find participant: %w", err)
 	}
