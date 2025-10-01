@@ -61,8 +61,8 @@ export function ChatApp() {
 
   return (
     <div className="h-full flex gap-6 relative">
-      {/* Mobile Menu Button */}
-      {!selectedConversation && (
+      {/* Mobile Menu Button - show when authenticated and no conversation selected */}
+      {isAuthenticated && !selectedConversation && (
         <button
           onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
           className="lg:hidden fixed top-4 left-4 z-50 p-3 bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 text-white hover:bg-white/20 transition-all"
@@ -83,7 +83,7 @@ export function ChatApp() {
         </button>
       )}
 
-      {/* Sidebar - Desktop: always visible, Mobile: overlay */}
+      {/* Sidebar - Desktop: always visible, Mobile: overlay when authenticated */}
       <div className={`
         w-80 flex-shrink-0
         lg:relative lg:block
@@ -91,6 +91,7 @@ export function ChatApp() {
         transition-transform duration-300 ease-in-out
         ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         ${selectedConversation ? 'hidden lg:block' : ''}
+        ${!isAuthenticated ? 'hidden lg:block' : ''}
       `}>
         <ConversationSidebar
           selectedConversation={selectedConversation}
@@ -110,10 +111,7 @@ export function ChatApp() {
       )}
 
       {/* Main Content */}
-      <div className={`
-        flex-1 flex flex-col
-        ${!selectedConversation ? 'hidden lg:flex' : ''}
-      `}>
+      <div className="flex-1 flex flex-col">
         {!isAuthenticated ? (
           <AuthPrompt />
         ) : selectedConversation ? (
