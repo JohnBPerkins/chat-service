@@ -286,35 +286,35 @@ export function MessageArea({
   return (
     <div className="flex h-full flex-col rounded-2xl border border-white/20 bg-white/10 shadow-2xl backdrop-blur-xl">
       {/* Header */}
-      <div className="border-b border-white/10 p-6">
+      <div className="border-b border-white/10 p-4 sm:p-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
             <div
-              className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+              className={`flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-2xl flex-shrink-0 ${
                 conversation.kind === 'group'
                   ? 'bg-gradient-to-r from-blue-500 to-purple-500'
                   : 'bg-white/10'
               }`}
             >
-              <Users className="h-6 w-6 text-white" />
+              <Users className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
             </div>
-            <div>
-              <h2 className="text-xl font-semibold text-white">
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-xl font-semibold text-white truncate">
                 {conversation.title ||
                   (conversation.kind === 'group' ? 'Group Chat' : 'Direct Message')}
               </h2>
-              <div className="flex items-center gap-2 text-sm text-white/60">
-                <span>{conversation.participants?.length || 0} participants</span>
+              <div className="flex items-center gap-2 text-xs sm:text-sm text-white/60">
+                <span className="truncate">{conversation.participants?.length || 0} participants</span>
                 {session?.accessToken && !isConnected && (
                   <>
-                    <span>•</span>
-                    <span className="text-red-400">Offline</span>
+                    <span className="hidden sm:inline">•</span>
+                    <span className="text-red-400 hidden sm:inline">Offline</span>
                   </>
                 )}
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="rounded-xl p-2 text-white/60 transition-all duration-300 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
@@ -339,7 +339,7 @@ export function MessageArea({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 space-y-4 overflow-y-auto p-6">
+      <div className="flex-1 space-y-3 sm:space-y-4 overflow-y-auto p-3 sm:p-6">
         {/* Load more trigger */}
         {hasMore && (
           <div ref={targetRef} className="flex justify-center py-4">
@@ -482,8 +482,8 @@ export function MessageArea({
       </div>
 
       {/* Message Input */}
-      <div className="border-t border-white/10 p-6">
-        <form onSubmit={handleSendMessage} className="flex gap-3">
+      <div className="border-t border-white/10 p-3 sm:p-6">
+        <form onSubmit={handleSendMessage} className="flex gap-2 sm:gap-3">
           <div className="flex-1">
             <textarea
               value={messageText}
@@ -491,9 +491,9 @@ export function MessageArea({
               onKeyPress={handleKeyPress}
               onBlur={stopTyping}
               placeholder="Type a message..."
-              className="w-full resize-none rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-white placeholder-white/50 backdrop-blur-sm transition-all duration-300 focus:scale-[1.02] focus:border-blue-400 focus:bg-white/15 focus:shadow-lg focus:outline-none"
+              className="w-full resize-none rounded-xl border border-white/20 bg-white/10 px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-white placeholder-white/50 backdrop-blur-sm transition-all duration-300 focus:scale-[1.01] sm:focus:scale-[1.02] focus:border-blue-400 focus:bg-white/15 focus:shadow-lg focus:outline-none"
               rows={1}
-              style={{ minHeight: '48px', maxHeight: '120px' }}
+              style={{ minHeight: '44px', maxHeight: '120px' }}
               onInput={e => {
                 const target = e.target as HTMLTextAreaElement
                 target.style.height = 'auto'
@@ -504,7 +504,7 @@ export function MessageArea({
           <button
             type="submit"
             disabled={!messageText.trim() || sendMessageMutation.isPending}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-3 font-medium text-white transition-all duration-300 hover:scale-105 hover:from-blue-600 hover:to-purple-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+            className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-2 sm:py-3 font-medium text-white transition-all duration-300 hover:scale-105 hover:from-blue-600 hover:to-purple-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 min-w-[44px]"
           >
             {sendMessageMutation.isPending ? (
               <Loader2 className="h-5 w-5 animate-spin" />

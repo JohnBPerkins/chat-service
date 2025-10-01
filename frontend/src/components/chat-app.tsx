@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
+import { Menu, X } from 'lucide-react'
 import { ConversationSidebar } from './conversation-sidebar'
 import { MessageArea } from './message-area'
 import { AuthPrompt } from './auth-prompt'
@@ -13,6 +14,7 @@ import type { Conversation } from '@/types/chat'
 export function ChatApp() {
   const { data: session, status } = useSession()
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const { isConnected, connectionError } = useWebSocket()
 
   const isAuthenticated = status === 'authenticated' && !!session
@@ -51,21 +53,67 @@ export function ChatApp() {
     )
   }
 
+  // Close mobile sidebar when conversation is selected
+  const handleConversationSelect = (conversation: Conversation) => {
+    setSelectedConversation(conversation)
+    setIsMobileSidebarOpen(false)
+  }
+
   return (
-    <div className="h-full flex gap-6">
-      {/* Sidebar */}
-      <div className="w-80 flex-shrink-0">
+    <div className="h-full flex gap-6 relative">
+      {/* Mobile Menu Button */}
+      {!selectedConversation && (
+        <button
+          onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+          className="lg:hidden fixed top-4 left-4 z-50 p-3 bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 text-white hover:bg-white/20 transition-all"
+          aria-label="Toggle menu"
+        >
+          {isMobileSidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      )}
+
+      {/* Mobile Back Button (when conversation is selected) */}
+      {selectedConversation && (
+        <button
+          onClick={() => setSelectedConversation(null)}
+          className="lg:hidden fixed top-4 left-4 z-50 p-3 bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 text-white hover:bg-white/20 transition-all"
+          aria-label="Back to conversations"
+        >
+          <X className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* Sidebar - Desktop: always visible, Mobile: overlay */}
+      <div className={`
+        w-80 flex-shrink-0
+        lg:relative lg:block
+        fixed inset-y-0 left-0 z-40
+        transition-transform duration-300 ease-in-out
+        ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        ${selectedConversation ? 'hidden lg:block' : ''}
+      `}>
         <ConversationSidebar
           selectedConversation={selectedConversation}
-          onConversationSelect={setSelectedConversation}
+          onConversationSelect={handleConversationSelect}
           isAuthenticated={isAuthenticated}
           isConnected={isConnected}
           connectionError={connectionError}
         />
       </div>
 
+      {/* Mobile Sidebar Overlay */}
+      {isMobileSidebarOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-30"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className={`
+        flex-1 flex flex-col
+        ${!selectedConversation ? 'hidden lg:flex' : ''}
+      `}>
         {!isAuthenticated ? (
           <AuthPrompt />
         ) : selectedConversation ? (
@@ -77,7 +125,7 @@ export function ChatApp() {
           />
         ) : (
           <div className="h-full bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 flex items-center justify-center">
-            <div className="text-center">
+            <div className="text-center px-4">
               <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl">💬</span>
               </div>

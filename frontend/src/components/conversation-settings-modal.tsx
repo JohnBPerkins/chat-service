@@ -104,11 +104,11 @@ export function ConversationSettingsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="w-full max-w-2xl mx-4 bg-white rounded-lg shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+      <div className="w-full max-w-2xl bg-white rounded-lg shadow-xl max-h-[90vh] overflow-y-auto flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
             Conversation Settings
           </h2>
           <button
@@ -146,7 +146,7 @@ export function ConversationSettingsModal({
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6 flex-1 overflow-y-auto">
           {activeTab === 'participants' && (
             <div className="space-y-6">
               {/* Add Participant */}
@@ -301,7 +301,7 @@ export function ConversationSettingsModal({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end p-6 border-t border-gray-200">
+        <div className="flex justify-end p-4 sm:p-6 border-t border-gray-200 sticky bottom-0 bg-white">
           <button
             onClick={onClose}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
