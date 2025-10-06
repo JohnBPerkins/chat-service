@@ -60,13 +60,15 @@ func main() {
 	userService := services.NewUserService(db)
 	conversationService := services.NewConversationService(db, userService, nc)
 	messageService := services.NewMessageService(db, nc, userService)
+	friendService := services.NewFriendService(db, nc, userService, conversationService)
 
 	// Initialize handlers
 	handlers := &handlers.Handlers{
 		UserService:         userService,
 		ConversationService: conversationService,
 		MessageService:      messageService,
-		WebSocketHub:        services.NewWebSocketHub(messageService, nc),
+		FriendService:       friendService,
+		WebSocketHub:        services.NewWebSocketHub(messageService, friendService, nc),
 	}
 
 	// Setup router

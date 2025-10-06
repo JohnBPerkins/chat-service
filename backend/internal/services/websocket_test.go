@@ -10,13 +10,16 @@ import (
 
 func TestWebSocketHub_NewWebSocketHub(t *testing.T) {
 	messageService := &MessageService{}
+	friendService := &FriendService{}
 	// We'll test without NATS connection for now
-	hub := NewWebSocketHub(messageService, nil)
+	hub := NewWebSocketHub(messageService, friendService, nil)
 
 	assert.NotNil(t, hub)
 	assert.Equal(t, messageService, hub.messageService)
+	assert.Equal(t, friendService, hub.friendService)
 	assert.NotNil(t, hub.clients)
 	assert.NotNil(t, hub.subscriptions)
+	assert.NotNil(t, hub.userSubscriptions)
 }
 
 func TestClient_SendFrame(t *testing.T) {
