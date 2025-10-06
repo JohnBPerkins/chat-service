@@ -15,7 +15,25 @@ export function ChatApp() {
   const { data: session, status } = useSession()
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
-  const { isConnected, connectionError } = useWebSocket()
+
+  const {
+    isConnected,
+    connectionError,
+    sendFriendRequest,
+    respondToFriendRequest
+  } = useWebSocket({
+    onFriendRequestReceived: (data) => {
+      console.log('Friend request received:', data)
+      // Notifications are handled by query invalidation in useWebSocket
+    },
+    onFriendRequestAccepted: (data) => {
+      console.log('Friend request accepted:', data)
+      // The new conversation will appear automatically via query invalidation
+    },
+    onFriendRequestRejected: (data) => {
+      console.log('Friend request rejected:', data)
+    },
+  })
 
   const isAuthenticated = status === 'authenticated' && !!session
 
@@ -99,6 +117,8 @@ export function ChatApp() {
           isAuthenticated={isAuthenticated}
           isConnected={isConnected}
           connectionError={connectionError}
+          onSendFriendRequest={sendFriendRequest}
+          onRespondToFriendRequest={respondToFriendRequest}
         />
       </div>
 

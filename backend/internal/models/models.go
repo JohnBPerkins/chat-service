@@ -13,6 +13,35 @@ type User struct {
 	CreatedAt time.Time `bson:"createdAt" json:"createdAt"`
 }
 
+// FriendRequest represents a friend request between users
+type FriendRequest struct {
+	ID          string    `bson:"_id" json:"id"` // Format: "fromUserId:toUserId"
+	FromUserID  string    `bson:"fromUserId" json:"fromUserId"`
+	ToUserID    string    `bson:"toUserId" json:"toUserId"`
+	Status      string    `bson:"status" json:"status"` // "pending", "accepted", "rejected"
+	CreatedAt   time.Time `bson:"createdAt" json:"createdAt"`
+	UpdatedAt   time.Time `bson:"updatedAt" json:"updatedAt"`
+}
+
+// FriendRequestWithUser represents a friend request with populated user info
+type FriendRequestWithUser struct {
+	ID        string    `json:"id"`
+	FromUser  *User     `json:"fromUser,omitempty"`
+	ToUser    *User     `json:"toUser,omitempty"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// Friendship represents an accepted friendship between two users
+type Friendship struct {
+	ID               string    `bson:"_id" json:"id"` // Format: smaller_userId:larger_userId
+	User1ID          string    `bson:"user1Id" json:"user1Id"`
+	User2ID          string    `bson:"user2Id" json:"user2Id"`
+	ConversationID   string    `bson:"conversationId" json:"conversationId"` // DM conversation ID
+	CreatedAt        time.Time `bson:"createdAt" json:"createdAt"`
+}
+
 // Conversation represents a chat conversation
 type Conversation struct {
 	ID            string    `bson:"_id" json:"id"`
@@ -118,6 +147,16 @@ type WSReceiptReadData struct {
 	MessageID      int64  `json:"messageId"`
 }
 
+// Friend request WebSocket types
+type WSFriendRequestSendData struct {
+	ToUserEmail string `json:"toUserEmail"`
+}
+
+type WSFriendRequestRespondData struct {
+	RequestID string `json:"requestId"`
+	Accept    bool   `json:"accept"`
+}
+
 // WebSocket response types
 type WSMessageAckData struct {
 	ClientMsgID string    `json:"clientMsgId"`
@@ -170,6 +209,22 @@ type WSConversationUpdateData struct {
 type WSErrorData struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+}
+
+// Friend request WebSocket events
+type WSFriendRequestReceivedData struct {
+	Request *FriendRequestWithUser `json:"request"`
+}
+
+type WSFriendRequestAcceptedData struct {
+	Friendship     *Friendship `json:"friendship"`
+	ConversationID string      `json:"conversationId"`
+	Friend         *User       `json:"friend"`
+}
+
+type WSFriendRequestRejectedData struct {
+	RequestID string `json:"requestId"`
+	ByUserID  string `json:"byUserId"`
 }
 
 // Pagination types

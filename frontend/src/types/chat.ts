@@ -6,6 +6,23 @@ export interface User {
   createdAt: string
 }
 
+export interface FriendRequest {
+  id: string
+  fromUser?: User
+  toUser?: User
+  status: 'pending' | 'accepted' | 'rejected'
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Friendship {
+  id: string
+  user1Id: string
+  user2Id: string
+  conversationId: string
+  createdAt: string
+}
+
 export interface Conversation {
   id: string
   kind: 'dm' | 'group'
@@ -84,6 +101,15 @@ export interface ReceiptReadFrame {
   messageId: number
 }
 
+export interface FriendRequestSendFrame {
+  toUserEmail: string
+}
+
+export interface FriendRequestRespondFrame {
+  requestId: string
+  accept: boolean
+}
+
 // Server -> Client frames
 export interface MessageAckFrame {
   clientMsgId: string
@@ -135,6 +161,21 @@ export interface ConversationUpdateFrame {
 export interface ErrorFrame {
   code: string
   message: string
+}
+
+export interface FriendRequestReceivedFrame {
+  request: FriendRequest
+}
+
+export interface FriendRequestAcceptedFrame {
+  friendship: Friendship
+  conversationId: string
+  friend: User
+}
+
+export interface FriendRequestRejectedFrame {
+  requestId: string
+  byUserId: string
 }
 
 // API Response types

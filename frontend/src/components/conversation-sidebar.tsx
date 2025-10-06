@@ -4,9 +4,10 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSession, signOut } from 'next-auth/react'
 import { formatDistanceToNow } from 'date-fns'
-import { Users, User as UserIcon, Plus, Settings, LogOut, WifiOff, Wifi } from 'lucide-react'
+import { Users, User as UserIcon, Plus, Settings, LogOut, WifiOff, Wifi, MessageSquare, UserPlus } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { NewConversationModal } from './new-conversation-modal'
+import { FriendsPanel } from './friends-panel'
 import type { Conversation } from '@/types/chat'
 
 interface ConversationSidebarProps {
@@ -15,6 +16,8 @@ interface ConversationSidebarProps {
   isAuthenticated: boolean
   isConnected: boolean
   connectionError: string | null
+  onSendFriendRequest: (email: string) => void
+  onRespondToFriendRequest: (requestId: string, accept: boolean) => void
 }
 
 export function ConversationSidebar({
@@ -22,10 +25,13 @@ export function ConversationSidebar({
   onConversationSelect,
   isAuthenticated,
   isConnected,
-  connectionError
+  connectionError,
+  onSendFriendRequest,
+  onRespondToFriendRequest
 }: ConversationSidebarProps) {
   const { data: session } = useSession()
   const [isNewConversationOpen, setIsNewConversationOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<'chats' | 'friends'>('chats')
 
   const {
     data: conversations,
@@ -45,10 +51,12 @@ export function ConversationSidebar({
   return (
     <div className="h-full bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 flex flex-col shadow-2xl">
       {/* Header */}
-      <div className="p-6 border-b border-white/10">
+      <div className="p-4 sm:p-6 border-b border-white/10">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-white">Conversations</h2>
-          {isAuthenticated && (
+          <h2 className="text-lg sm:text-xl font-semibold text-white">
+            {activeTab === 'chats' ? 'Conversations' : 'Friends'}
+          </h2>
+          {isAuthenticated && activeTab === 'chats' && (
             <button
               onClick={() => setIsNewConversationOpen(true)}
               className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300 hover:scale-110"
@@ -59,8 +67,36 @@ export function ConversationSidebar({
           )}
         </div>
 
-        {/* Connection Status - only show when authenticated */}
+        {/* Tabs */}
         {isAuthenticated && (
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setActiveTab('chats')}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'chats'
+                  ? 'bg-white/20 text-white'
+                  : 'text-white/60 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span className="hidden sm:inline">Chats</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('friends')}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'friends'
+                  ? 'bg-white/20 text-white'
+                  : 'text-white/60 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <UserPlus className="w-4 h-4" />
+              <span className="hidden sm:inline">Friends</span>
+            </button>
+          </div>
+        )}
+
+        {/* Connection Status - only show when authenticated and on chats tab */}
+        {isAuthenticated && activeTab === 'chats' && (
           <div className="flex items-center gap-2 text-sm">
             {isConnected ? (
               <div className="flex items-center gap-2 text-green-400">
@@ -77,7 +113,7 @@ export function ConversationSidebar({
         )}
       </div>
 
-      {/* Conversations List */}
+      {/* Content */}
       <div className="flex-1 overflow-hidden">
         {!isAuthenticated ? (
           <div className="p-6 text-center">
@@ -87,6 +123,11 @@ export function ConversationSidebar({
             <p className="text-white/70 text-sm mb-2">Sign in to see your conversations</p>
             <p className="text-white/50 text-xs">Connect with friends and colleagues</p>
           </div>
+        ) : activeTab === 'friends' ? (
+          <FriendsPanel
+            onSendFriendRequest={onSendFriendRequest}
+            onRespondToRequest={onRespondToFriendRequest}
+          />
         ) : isLoading ? (
           <div className="p-6 space-y-4">
             {[...Array(5)].map((_, i) => (

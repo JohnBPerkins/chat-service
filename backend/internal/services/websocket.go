@@ -18,11 +18,23 @@ import (
 
 type WebSocketHub struct {
 	messageService *MessageService
+	friendService  *FriendService
 	natsConn       *nats.NATSConnection
 	clients        map[string]*Client
 	clientsMu      sync.RWMutex
 	subscriptions  map[string]*ConversationSubscription
 	subsMu         sync.RWMutex
+	userSubscriptions map[string]*UserSubscription
+	userSubsMu        sync.RWMutex
+}
+
+type UserSubscription struct {
+	UserID            string
+	Clients           map[string]*Client
+	ClientsMu         sync.RWMutex
+	FriendRequestSub  *natsgo.Subscription
+	FriendAcceptedSub *natsgo.Subscription
+	FriendRejectedSub *natsgo.Subscription
 }
 
 type Client struct {
@@ -46,12 +58,14 @@ type ConversationSubscription struct {
 	ConversationSub     *natsgo.Subscription
 }
 
-func NewWebSocketHub(messageService *MessageService, natsConn *nats.NATSConnection) *WebSocketHub {
+func NewWebSocketHub(messageService *MessageService, friendService *FriendService, natsConn *nats.NATSConnection) *WebSocketHub {
 	return &WebSocketHub{
-		messageService: messageService,
-		natsConn:       natsConn,
-		clients:        make(map[string]*Client),
-		subscriptions:  make(map[string]*ConversationSubscription),
+		messageService:    messageService,
+		friendService:     friendService,
+		natsConn:          natsConn,
+		clients:           make(map[string]*Client),
+		subscriptions:     make(map[string]*ConversationSubscription),
+		userSubscriptions: make(map[string]*UserSubscription),
 	}
 }
 
@@ -77,6 +91,9 @@ func (h *WebSocketHub) HandleWebSocket(w http.ResponseWriter, r *http.Request, u
 	h.clientsMu.Lock()
 	h.clients[clientID] = client
 	h.clientsMu.Unlock()
+
+	// Subscribe to user-level events (friend requests, etc.)
+	h.subscribeUserEvents(client, userID)
 
 	go client.writePump()
 	go client.readPump()
@@ -236,6 +253,50 @@ func (c *Client) handleFrame(frame *models.WSFrame) {
 		if err != nil {
 			log.Printf("Failed to mark message as read: %v", err)
 		}
+
+	case "friend.request.send":
+		var data models.WSFriendRequestSendData
+		dataBytes, err := json.Marshal(frame.Data)
+		if err != nil {
+			c.sendError("INVALID_DATA", "Invalid friend request data format")
+			return
+		}
+		if err := json.Unmarshal(dataBytes, &data); err != nil {
+			c.sendError("INVALID_DATA", "Invalid friend request data")
+			return
+		}
+
+		request, err := c.Hub.friendService.SendFriendRequest(ctx, c.UserID, data.ToUserEmail)
+		if err != nil {
+			c.sendError("FRIEND_REQUEST_FAILED", fmt.Sprintf("Failed to send friend request: %v", err))
+			return
+		}
+
+		// Send acknowledgment
+		c.sendFrame("friend.request.sent", request)
+
+	case "friend.request.respond":
+		var data models.WSFriendRequestRespondData
+		dataBytes, err := json.Marshal(frame.Data)
+		if err != nil {
+			c.sendError("INVALID_DATA", "Invalid friend response data format")
+			return
+		}
+		if err := json.Unmarshal(dataBytes, &data); err != nil {
+			c.sendError("INVALID_DATA", "Invalid friend response data")
+			return
+		}
+
+		friendship, err := c.Hub.friendService.RespondToFriendRequest(ctx, data.RequestID, c.UserID, data.Accept)
+		if err != nil {
+			c.sendError("FRIEND_RESPONSE_FAILED", fmt.Sprintf("Failed to respond to friend request: %v", err))
+			return
+		}
+
+		if data.Accept {
+			// Friendship will be sent via NATS event
+			_ = friendship
+		}
 	}
 }
 
@@ -266,6 +327,9 @@ func (h *WebSocketHub) unregisterClient(client *Client) {
 	h.clientsMu.Lock()
 	delete(h.clients, client.ID)
 	h.clientsMu.Unlock()
+
+	// Unsubscribe from user-level events
+	h.unsubscribeUserEvents(client)
 
 	// Unsubscribe from all conversations
 	client.subscriptionsMu.RLock()
@@ -500,4 +564,139 @@ func isExpectedDisconnection(err error) bool {
 		strings.Contains(errStr, "StatusNormalClosure") ||
 		strings.Contains(errStr, "connection closed") ||
 		strings.Contains(errStr, "status = StatusGoingAway")
+}
+
+// subscribeUserEvents subscribes a client to user-level events (friend requests, etc.)
+func (h *WebSocketHub) subscribeUserEvents(client *Client, userID string) {
+	h.userSubsMu.Lock()
+	defer h.userSubsMu.Unlock()
+
+	sub, exists := h.userSubscriptions[userID]
+	if !exists {
+		sub = &UserSubscription{
+			UserID:  userID,
+			Clients: make(map[string]*Client),
+		}
+
+		// Setup NATS subscriptions for user events
+		h.setupUserNATSSubscriptions(sub)
+		h.userSubscriptions[userID] = sub
+	}
+
+	sub.ClientsMu.Lock()
+	sub.Clients[client.ID] = client
+	sub.ClientsMu.Unlock()
+}
+
+// unsubscribeUserEvents unsubscribes a client from user-level events
+func (h *WebSocketHub) unsubscribeUserEvents(client *Client) {
+	h.userSubsMu.Lock()
+	defer h.userSubsMu.Unlock()
+
+	sub, exists := h.userSubscriptions[client.UserID]
+	if !exists {
+		return
+	}
+
+	sub.ClientsMu.Lock()
+	delete(sub.Clients, client.ID)
+	clientCount := len(sub.Clients)
+	sub.ClientsMu.Unlock()
+
+	// If no more clients, cleanup NATS subscriptions
+	if clientCount == 0 {
+		if sub.FriendRequestSub != nil {
+			sub.FriendRequestSub.Unsubscribe()
+		}
+		if sub.FriendAcceptedSub != nil {
+			sub.FriendAcceptedSub.Unsubscribe()
+		}
+		if sub.FriendRejectedSub != nil {
+			sub.FriendRejectedSub.Unsubscribe()
+		}
+		delete(h.userSubscriptions, client.UserID)
+	}
+}
+
+// setupUserNATSSubscriptions sets up NATS subscriptions for user-level events
+func (h *WebSocketHub) setupUserNATSSubscriptions(sub *UserSubscription) {
+	// Subscribe to friend requests
+	friendRequestSubject := fmt.Sprintf("chat.user.%s.friend_request", sub.UserID)
+	friendRequestSub, err := h.natsConn.Conn.Subscribe(friendRequestSubject, func(msg *natsgo.Msg) {
+		var data models.WSFriendRequestReceivedData
+		if err := json.Unmarshal(msg.Data, &data); err != nil {
+			log.Printf("Failed to unmarshal friend request data: %v", err)
+			return
+		}
+
+		frame := &models.WSFrame{
+			Type: "friend.request.received",
+			TS:   time.Now().UnixMilli(),
+			Data: data,
+		}
+
+		h.broadcastToUserSubscription(sub, frame)
+	})
+	if err != nil {
+		log.Printf("Failed to subscribe to friend requests: %v", err)
+	}
+	sub.FriendRequestSub = friendRequestSub
+
+	// Subscribe to friend request accepted
+	friendAcceptedSubject := fmt.Sprintf("chat.user.%s.friend_accepted", sub.UserID)
+	friendAcceptedSub, err := h.natsConn.Conn.Subscribe(friendAcceptedSubject, func(msg *natsgo.Msg) {
+		var data models.WSFriendRequestAcceptedData
+		if err := json.Unmarshal(msg.Data, &data); err != nil {
+			log.Printf("Failed to unmarshal friend accepted data: %v", err)
+			return
+		}
+
+		frame := &models.WSFrame{
+			Type: "friend.request.accepted",
+			TS:   time.Now().UnixMilli(),
+			Data: data,
+		}
+
+		h.broadcastToUserSubscription(sub, frame)
+	})
+	if err != nil {
+		log.Printf("Failed to subscribe to friend accepted: %v", err)
+	}
+	sub.FriendAcceptedSub = friendAcceptedSub
+
+	// Subscribe to friend request rejected
+	friendRejectedSubject := fmt.Sprintf("chat.user.%s.friend_rejected", sub.UserID)
+	friendRejectedSub, err := h.natsConn.Conn.Subscribe(friendRejectedSubject, func(msg *natsgo.Msg) {
+		var data models.WSFriendRequestRejectedData
+		if err := json.Unmarshal(msg.Data, &data); err != nil {
+			log.Printf("Failed to unmarshal friend rejected data: %v", err)
+			return
+		}
+
+		frame := &models.WSFrame{
+			Type: "friend.request.rejected",
+			TS:   time.Now().UnixMilli(),
+			Data: data,
+		}
+
+		h.broadcastToUserSubscription(sub, frame)
+	})
+	if err != nil {
+		log.Printf("Failed to subscribe to friend rejected: %v", err)
+	}
+	sub.FriendRejectedSub = friendRejectedSub
+}
+
+// broadcastToUserSubscription broadcasts a frame to all clients in a user subscription
+func (h *WebSocketHub) broadcastToUserSubscription(sub *UserSubscription, frame *models.WSFrame) {
+	sub.ClientsMu.RLock()
+	defer sub.ClientsMu.RUnlock()
+
+	for _, client := range sub.Clients {
+		select {
+		case client.Send <- frame:
+		default:
+			log.Printf("WebSocket client %s send buffer full during user event broadcast", client.ID)
+		}
+	}
 }

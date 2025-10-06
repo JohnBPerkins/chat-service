@@ -57,14 +57,16 @@ func main() {
 
 	// Initialize services
 	userService := services.NewUserService(db)
-	conversationService := services.NewConversationService(db, userService, nc)
+	conversationService := services.NewConversationService(db, nc, userService)
 	messageService := services.NewMessageService(db, nc, userService)
+	friendService := services.NewFriendService(db, nc, userService, conversationService)
 
 	// Initialize handlers
 	handlers := &handlers.Handlers{
 		UserService:         userService,
 		ConversationService: conversationService,
 		MessageService:      messageService,
+		FriendService:       friendService,
 	}
 
 	// Setup router
@@ -116,6 +118,10 @@ func main() {
 		r.Post("/messages", handlers.SendMessage)
 		r.Post("/messages/{id}/read", handlers.MarkMessageAsRead)
 		r.Delete("/messages/{id}", handlers.DeleteMessage)
+
+		// Friend routes
+		r.Get("/friends", handlers.GetFriends)
+		r.Get("/friend-requests", handlers.GetPendingFriendRequests)
 	})
 
 	// Start server

@@ -6,6 +6,8 @@ import type {
   MessageSendFrame,
   TypingUpdateFrame,
   ReceiptReadFrame,
+  FriendRequestSendFrame,
+  FriendRequestRespondFrame,
   MessageAckFrame,
   MessageNewFrame,
   MessageDeletedFrame,
@@ -13,6 +15,9 @@ import type {
   ReceiptUpdateFrame,
   ParticipantUpdateFrame,
   ConversationUpdateFrame,
+  FriendRequestReceivedFrame,
+  FriendRequestAcceptedFrame,
+  FriendRequestRejectedFrame,
   ErrorFrame,
 } from '@/types/chat'
 
@@ -26,6 +31,9 @@ interface WebSocketEventHandlers {
   'receipt.update': EventHandler<ReceiptUpdateFrame>
   'participant.update': EventHandler<ParticipantUpdateFrame>
   'conversation.update': EventHandler<ConversationUpdateFrame>
+  'friend.request.received': EventHandler<FriendRequestReceivedFrame>
+  'friend.request.accepted': EventHandler<FriendRequestAcceptedFrame>
+  'friend.request.rejected': EventHandler<FriendRequestRejectedFrame>
   'error': EventHandler<ErrorFrame>
   'open': EventHandler<void>
   'close': EventHandler<void>
@@ -204,6 +212,20 @@ export class ChatWebSocket {
     this.sendFrame<ReceiptReadFrame>('receipt.read', {
       conversationId,
       messageId,
+    })
+  }
+
+  // Friend operations
+  sendFriendRequest(toUserEmail: string): void {
+    this.sendFrame<FriendRequestSendFrame>('friend.request.send', {
+      toUserEmail,
+    })
+  }
+
+  respondToFriendRequest(requestId: string, accept: boolean): void {
+    this.sendFrame<FriendRequestRespondFrame>('friend.request.respond', {
+      requestId,
+      accept,
     })
   }
 

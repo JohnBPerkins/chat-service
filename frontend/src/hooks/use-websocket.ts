@@ -11,6 +11,9 @@ import type {
   ParticipantUpdateFrame,
   ConversationUpdateFrame,
   ErrorFrame,
+  FriendRequestReceivedFrame,
+  FriendRequestAcceptedFrame,
+  FriendRequestRejectedFrame,
 } from '@/types/chat'
 
 interface UseWebSocketOptions {
@@ -21,6 +24,9 @@ interface UseWebSocketOptions {
   onReceiptUpdate?: (receipt: ReceiptUpdateFrame) => void
   onParticipantUpdate?: (participant: ParticipantUpdateFrame) => void
   onConversationUpdate?: (conversation: ConversationUpdateFrame) => void
+  onFriendRequestReceived?: (request: FriendRequestReceivedFrame) => void
+  onFriendRequestAccepted?: (acceptance: FriendRequestAcceptedFrame) => void
+  onFriendRequestRejected?: (rejection: FriendRequestRejectedFrame) => void
   onError?: (error: ErrorFrame) => void
 }
 
@@ -147,6 +153,45 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       options.onConversationUpdate?.(data)
     })
 
+    ws.on('friend.request.received', (data: FriendRequestReceivedFrame) => {
+      console.log('Friend request received:', data)
+
+      // Invalidate friend requests query to show new request
+      queryClient.invalidateQueries({
+        queryKey: ['friend-requests']
+      })
+
+      options.onFriendRequestReceived?.(data)
+    })
+
+    ws.on('friend.request.accepted', (data: FriendRequestAcceptedFrame) => {
+      console.log('Friend request accepted:', data)
+
+      // Invalidate friends and conversations lists
+      queryClient.invalidateQueries({
+        queryKey: ['friends']
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['conversations']
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['friend-requests']
+      })
+
+      options.onFriendRequestAccepted?.(data)
+    })
+
+    ws.on('friend.request.rejected', (data: FriendRequestRejectedFrame) => {
+      console.log('Friend request rejected:', data)
+
+      // Invalidate friend requests to remove rejected request
+      queryClient.invalidateQueries({
+        queryKey: ['friend-requests']
+      })
+
+      options.onFriendRequestRejected?.(data)
+    })
+
     ws.on('error', (data: ErrorFrame) => {
       console.error('WebSocket error:', data)
       setConnectionError(data.message)
@@ -171,6 +216,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       ws.off('receipt.update')
       ws.off('participant.update')
       ws.off('conversation.update')
+      ws.off('friend.request.received')
+      ws.off('friend.request.accepted')
+      ws.off('friend.request.rejected')
       ws.off('error')
     }
   }, [session?.accessToken, queryClient, options])
@@ -205,6 +253,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     wsRef.current.markAsRead(conversationId, messageId)
   }
 
+  const sendFriendRequest = (toUserEmail: string) => {
+    wsRef.current.sendFriendRequest(toUserEmail)
+  }
+
+  const respondToFriendRequest = (requestId: string, accept: boolean) => {
+    wsRef.current.respondToFriendRequest(requestId, accept)
+  }
+
   return {
     isConnected,
     connectionError,
@@ -213,6 +269,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     sendMessage,
     updateTyping,
     markAsRead,
+    sendFriendRequest,
+    respondToFriendRequest,
     webSocket: wsRef.current,
   }
 }

@@ -15,6 +15,7 @@ type Handlers struct {
 	UserService         *services.UserService
 	ConversationService *services.ConversationService
 	MessageService      *services.MessageService
+	FriendService       *services.FriendService
 	WebSocketHub        *services.WebSocketHub
 }
 
@@ -489,4 +490,44 @@ func (h *Handlers) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Message deleted successfully"})
+}
+
+// GetFriends returns all friends for a user
+func (h *Handlers) GetFriends(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		http.Error(w, "User ID required as query parameter", http.StatusBadRequest)
+		return
+	}
+
+	friends, err := h.FriendService.GetFriends(r.Context(), userID)
+	if err != nil {
+		http.Error(w, "Failed to get friends", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"friends": friends,
+	})
+}
+
+// GetPendingFriendRequests returns all pending friend requests for a user
+func (h *Handlers) GetPendingFriendRequests(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		http.Error(w, "User ID required as query parameter", http.StatusBadRequest)
+		return
+	}
+
+	requests, err := h.FriendService.GetPendingRequests(r.Context(), userID)
+	if err != nil {
+		http.Error(w, "Failed to get friend requests", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"requests": requests,
+	})
 }

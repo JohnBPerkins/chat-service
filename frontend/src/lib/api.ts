@@ -7,6 +7,7 @@ import type {
   SendMessageRequest,
   PaginatedMessagesResponse,
   ApiError,
+  FriendRequest,
 } from '@/types/chat'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
@@ -165,6 +166,19 @@ class ApiClient {
     return this.request<{ message: string }>(`/v1/conversations/${conversationId}/participants/${encodeURIComponent(userEmail)}?userId=${encodeURIComponent(userId)}`, {
       method: 'DELETE',
     })
+  }
+
+  // Friend APIs
+  async getFriends(): Promise<User[]> {
+    const userId = await this.getUserId()
+    const response = await this.request<{ friends: User[] }>(`/v1/friends?userId=${encodeURIComponent(userId)}`)
+    return response.friends || []
+  }
+
+  async getPendingFriendRequests(): Promise<FriendRequest[]> {
+    const userId = await this.getUserId()
+    const response = await this.request<{ requests: FriendRequest[] }>(`/v1/friend-requests?userId=${encodeURIComponent(userId)}`)
+    return response.requests || []
   }
 }
 

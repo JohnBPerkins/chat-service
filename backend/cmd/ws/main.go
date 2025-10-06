@@ -58,10 +58,12 @@ func main() {
 
 	// Initialize services
 	userService := services.NewUserService(db)
+	conversationService := services.NewConversationService(db, nc, userService)
 	messageService := services.NewMessageService(db, nc, userService)
+	friendService := services.NewFriendService(db, nc, userService, conversationService)
 
 	// Initialize WebSocket hub
-	wsHub := services.NewWebSocketHub(messageService, nc)
+	wsHub := services.NewWebSocketHub(messageService, friendService, nc)
 
 	// Initialize handlers
 	handlers := &handlers.Handlers{
