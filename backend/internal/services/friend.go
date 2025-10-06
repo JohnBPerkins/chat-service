@@ -79,6 +79,15 @@ func (s *FriendService) SendFriendRequest(ctx context.Context, fromUserID, toUse
 	requestID := fmt.Sprintf("%s:%s", sanitizedFromUserID, toUser.ID)
 	now := time.Now()
 
+	// Delete any old non-pending request with the same ID to allow resending
+	_, err = collection.DeleteOne(ctx, bson.M{
+		"_id": requestID,
+		"status": bson.M{"$ne": "pending"},
+	})
+	if err != nil && err != mongo.ErrNoDocuments {
+		fmt.Printf("Warning: failed to delete old request: %v\n", err)
+	}
+
 	friendRequest := &models.FriendRequest{
 		ID:         requestID,
 		FromUserID: sanitizedFromUserID,
