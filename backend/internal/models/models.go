@@ -236,6 +236,16 @@ type WSFriendRemovedData struct {
 	ConversationID string `json:"conversationId"`
 }
 
+type WSConversationAddedData struct {
+	Conversation *Conversation `json:"conversation"`
+	AddedBy      string        `json:"addedBy"`
+}
+
+type WSConversationRemovedData struct {
+	ConversationID string `json:"conversationId"`
+	RemovedBy      string `json:"removedBy"`
+}
+
 // Pagination types
 type PaginatedMessagesResponse struct {
 	Messages   []MessageWithSender `json:"messages"`

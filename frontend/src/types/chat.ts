@@ -187,6 +187,16 @@ export interface FriendRemovedFrame {
   conversationId: string
 }
 
+export interface ConversationAddedFrame {
+  conversation: Conversation
+  addedBy: string
+}
+
+export interface ConversationRemovedFrame {
+  conversationId: string
+  removedBy: string
+}
+
 // API Response types
 export interface PaginatedMessagesResponse {
   messages: Message[]

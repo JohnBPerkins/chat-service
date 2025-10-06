@@ -103,27 +103,34 @@ func (s *ConversationService) CreateConversation(ctx context.Context, req *model
 		if err != nil {
 			return nil, fmt.Errorf("failed to add participant %s: %w", memberID, err)
 		}
+	}
 
-		// Publish participant update event for each new member (if NATS is available)
-		if s.nats != nil {
-			user, userErr := s.userService.GetUserByID(ctx, memberID)
-			if userErr == nil {
-				participantUpdateData := &models.WSParticipantUpdateData{
-					ConversationID: conversation.ID,
-					UserID:         memberID,
-					Action:         "added",
-					User:           user,
-					UpdatedBy:      sanitizedCreatorID,
+	// Publish user-level event for new conversation to ALL participants including creator
+	if s.nats != nil {
+		conversationAddedData := &models.WSConversationAddedData{
+			Conversation: conversation,
+			AddedBy:      sanitizedCreatorID,
+		}
+
+		dataBytes, marshalErr := json.Marshal(conversationAddedData)
+		if marshalErr != nil {
+			log.Printf("Failed to marshal conversation added data: %v", marshalErr)
+		} else {
+			// Notify creator
+			subject := fmt.Sprintf("chat.user.%s.conversation_added", sanitizedCreatorID)
+			if publishErr := s.nats.Conn.Publish(subject, dataBytes); publishErr != nil {
+				log.Printf("Failed to publish conversation added to creator: %v", publishErr)
+			}
+
+			// Notify all other members
+			for _, memberID := range sanitizedMemberIDs {
+				if memberID == sanitizedCreatorID {
+					continue // Already notified creator
 				}
 
-				dataBytes, marshalErr := json.Marshal(participantUpdateData)
-				if marshalErr != nil {
-					log.Printf("Failed to marshal participant update data: %v", marshalErr)
-				} else {
-					subject := fmt.Sprintf("chat.conversation.%s.participant", conversation.ID)
-					if publishErr := s.nats.Conn.Publish(subject, dataBytes); publishErr != nil {
-						log.Printf("Failed to publish participant update: %v", publishErr)
-					}
+				subject := fmt.Sprintf("chat.user.%s.conversation_added", memberID)
+				if publishErr := s.nats.Conn.Publish(subject, dataBytes); publishErr != nil {
+					log.Printf("Failed to publish conversation added to user %s: %v", memberID, publishErr)
 				}
 			}
 		}
@@ -348,6 +355,25 @@ func (s *ConversationService) AddParticipant(ctx context.Context, conversationID
 				log.Printf("Failed to publish participant update: %v", err)
 			}
 		}
+
+		// Also publish user-level event for the added user
+		conv, convErr := s.GetConversationByID(ctx, conversationID)
+		if convErr == nil {
+			conversationAddedData := &models.WSConversationAddedData{
+				Conversation: conv,
+				AddedBy:      requesterID,
+			}
+
+			dataBytes, marshalErr := json.Marshal(conversationAddedData)
+			if marshalErr != nil {
+				log.Printf("Failed to marshal conversation added data: %v", marshalErr)
+			} else {
+				subject := fmt.Sprintf("chat.user.%s.conversation_added", newUserID)
+				if publishErr := s.nats.Conn.Publish(subject, dataBytes); publishErr != nil {
+					log.Printf("Failed to publish conversation added: %v", publishErr)
+				}
+			}
+		}
 	}
 
 	return nil
@@ -408,6 +434,22 @@ func (s *ConversationService) RemoveParticipant(ctx context.Context, conversatio
 		subject := fmt.Sprintf("chat.conv.%s.participants", conversationID)
 		if err := s.nats.PublishToSubject(subject, participantUpdateData); err != nil {
 			log.Printf("Failed to publish participant removal event: %v", err)
+		}
+
+		// Also publish user-level event for the removed user
+		conversationRemovedData := &models.WSConversationRemovedData{
+			ConversationID: conversationID,
+			RemovedBy:      requesterID,
+		}
+
+		dataBytes, marshalErr := json.Marshal(conversationRemovedData)
+		if marshalErr != nil {
+			log.Printf("Failed to marshal conversation removed data: %v", marshalErr)
+		} else {
+			userSubject := fmt.Sprintf("chat.user.%s.conversation_removed", targetUserID)
+			if publishErr := s.nats.Conn.Publish(userSubject, dataBytes); publishErr != nil {
+				log.Printf("Failed to publish conversation removed: %v", publishErr)
+			}
 		}
 	}
 
@@ -490,6 +532,14 @@ func (s *ConversationService) DeleteConversation(ctx context.Context, conversati
 		return fmt.Errorf("only admins can delete conversations")
 	}
 
+	// Get all participants before deletion to notify them
+	var allParticipants []models.Participant
+	cursor, err := participantsCollection.Find(ctx, bson.M{"conversationId": conversationID})
+	if err == nil {
+		cursor.All(ctx, &allParticipants)
+		cursor.Close(ctx)
+	}
+
 	// Delete all messages in the conversation
 	messagesCollection := s.db.DB.Collection("messages")
 	_, err = messagesCollection.DeleteMany(ctx, bson.M{"conversationId": conversationID})
@@ -512,6 +562,26 @@ func (s *ConversationService) DeleteConversation(ctx context.Context, conversati
 
 	if result.DeletedCount == 0 {
 		return fmt.Errorf("conversation not found")
+	}
+
+	// Notify all participants via user-level events
+	if s.nats != nil {
+		conversationRemovedData := &models.WSConversationRemovedData{
+			ConversationID: conversationID,
+			RemovedBy:      userID,
+		}
+
+		dataBytes, marshalErr := json.Marshal(conversationRemovedData)
+		if marshalErr != nil {
+			log.Printf("Failed to marshal conversation removed data: %v", marshalErr)
+		} else {
+			for _, p := range allParticipants {
+				subject := fmt.Sprintf("chat.user.%s.conversation_removed", p.UserID)
+				if publishErr := s.nats.Conn.Publish(subject, dataBytes); publishErr != nil {
+					log.Printf("Failed to publish conversation removed to user %s: %v", p.UserID, publishErr)
+				}
+			}
+		}
 	}
 
 	return nil

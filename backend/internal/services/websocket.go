@@ -29,13 +29,15 @@ type WebSocketHub struct {
 }
 
 type UserSubscription struct {
-	UserID            string
-	Clients           map[string]*Client
-	ClientsMu         sync.RWMutex
-	FriendRequestSub  *natsgo.Subscription
-	FriendAcceptedSub *natsgo.Subscription
-	FriendRejectedSub *natsgo.Subscription
-	FriendRemovedSub  *natsgo.Subscription
+	UserID                 string
+	Clients                map[string]*Client
+	ClientsMu              sync.RWMutex
+	FriendRequestSub       *natsgo.Subscription
+	FriendAcceptedSub      *natsgo.Subscription
+	FriendRejectedSub      *natsgo.Subscription
+	FriendRemovedSub       *natsgo.Subscription
+	ConversationAddedSub   *natsgo.Subscription
+	ConversationRemovedSub *natsgo.Subscription
 }
 
 type Client struct {
@@ -639,6 +641,12 @@ func (h *WebSocketHub) unsubscribeUserEvents(client *Client) {
 		if sub.FriendRemovedSub != nil {
 			sub.FriendRemovedSub.Unsubscribe()
 		}
+		if sub.ConversationAddedSub != nil {
+			sub.ConversationAddedSub.Unsubscribe()
+		}
+		if sub.ConversationRemovedSub != nil {
+			sub.ConversationRemovedSub.Unsubscribe()
+		}
 		delete(h.userSubscriptions, client.UserID)
 	}
 }
@@ -732,6 +740,50 @@ func (h *WebSocketHub) setupUserNATSSubscriptions(sub *UserSubscription) {
 		log.Printf("Failed to subscribe to friend removed: %v", err)
 	}
 	sub.FriendRemovedSub = friendRemovedSub
+
+	// Subscribe to conversation added
+	conversationAddedSubject := fmt.Sprintf("chat.user.%s.conversation_added", sub.UserID)
+	conversationAddedSub, err := h.natsConn.Conn.Subscribe(conversationAddedSubject, func(msg *natsgo.Msg) {
+		var data models.WSConversationAddedData
+		if err := json.Unmarshal(msg.Data, &data); err != nil {
+			log.Printf("Failed to unmarshal conversation added data: %v", err)
+			return
+		}
+
+		frame := &models.WSFrame{
+			Type: "conversation.added",
+			TS:   time.Now().UnixMilli(),
+			Data: data,
+		}
+
+		h.broadcastToUserSubscription(sub, frame)
+	})
+	if err != nil {
+		log.Printf("Failed to subscribe to conversation added: %v", err)
+	}
+	sub.ConversationAddedSub = conversationAddedSub
+
+	// Subscribe to conversation removed
+	conversationRemovedSubject := fmt.Sprintf("chat.user.%s.conversation_removed", sub.UserID)
+	conversationRemovedSub, err := h.natsConn.Conn.Subscribe(conversationRemovedSubject, func(msg *natsgo.Msg) {
+		var data models.WSConversationRemovedData
+		if err := json.Unmarshal(msg.Data, &data); err != nil {
+			log.Printf("Failed to unmarshal conversation removed data: %v", err)
+			return
+		}
+
+		frame := &models.WSFrame{
+			Type: "conversation.removed",
+			TS:   time.Now().UnixMilli(),
+			Data: data,
+		}
+
+		h.broadcastToUserSubscription(sub, frame)
+	})
+	if err != nil {
+		log.Printf("Failed to subscribe to conversation removed: %v", err)
+	}
+	sub.ConversationRemovedSub = conversationRemovedSub
 }
 
 // broadcastToUserSubscription broadcasts a frame to all clients in a user subscription

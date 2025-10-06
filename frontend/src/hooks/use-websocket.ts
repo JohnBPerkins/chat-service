@@ -15,6 +15,8 @@ import type {
   FriendRequestAcceptedFrame,
   FriendRequestRejectedFrame,
   FriendRemovedFrame,
+  ConversationAddedFrame,
+  ConversationRemovedFrame,
 } from '@/types/chat'
 
 interface UseWebSocketOptions {
@@ -29,6 +31,8 @@ interface UseWebSocketOptions {
   onFriendRequestAccepted?: (acceptance: FriendRequestAcceptedFrame) => void
   onFriendRequestRejected?: (rejection: FriendRequestRejectedFrame) => void
   onFriendRemoved?: (removal: FriendRemovedFrame) => void
+  onConversationAdded?: (addition: ConversationAddedFrame) => void
+  onConversationRemoved?: (removal: ConversationRemovedFrame) => void
   onError?: (error: ErrorFrame) => void
 }
 
@@ -208,6 +212,33 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       options.onFriendRemoved?.(data)
     })
 
+    ws.on('conversation.added', (data: ConversationAddedFrame) => {
+      console.log('Conversation added:', data)
+
+      // Invalidate conversations list to show new conversation
+      queryClient.invalidateQueries({
+        queryKey: ['conversations']
+      })
+
+      options.onConversationAdded?.(data)
+    })
+
+    ws.on('conversation.removed', (data: ConversationRemovedFrame) => {
+      console.log('Conversation removed:', data)
+
+      // Invalidate conversations list to remove conversation
+      queryClient.invalidateQueries({
+        queryKey: ['conversations']
+      })
+
+      // Invalidate messages for this conversation
+      queryClient.invalidateQueries({
+        queryKey: ['messages', data.conversationId]
+      })
+
+      options.onConversationRemoved?.(data)
+    })
+
     ws.on('error', (data: ErrorFrame) => {
       console.error('WebSocket error:', data)
       setConnectionError(data.message)
@@ -236,6 +267,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       ws.off('friend.request.accepted')
       ws.off('friend.request.rejected')
       ws.off('friend.removed')
+      ws.off('conversation.added')
+      ws.off('conversation.removed')
       ws.off('error')
     }
   }, [session?.accessToken, queryClient, options])
