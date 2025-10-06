@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -437,12 +438,18 @@ func (h *Handlers) RemoveParticipant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// URL decode the parameter (Chi doesn't automatically decode URL params)
+	decodedEmailOrID, decodeErr := url.QueryUnescape(targetUserEmailOrID)
+	if decodeErr != nil {
+		decodedEmailOrID = targetUserEmailOrID // fallback to original if decode fails
+	}
+
 	// Convert email to user ID if needed
-	targetUserID := targetUserEmailOrID
+	targetUserID := decodedEmailOrID
 	// Check if it looks like an email (contains @)
-	if strings.Contains(targetUserEmailOrID, "@") {
-		user, err := h.UserService.GetUserByEmail(r.Context(), targetUserEmailOrID)
-		if err != nil {
+	if strings.Contains(decodedEmailOrID, "@") {
+		user, userErr := h.UserService.GetUserByEmail(r.Context(), decodedEmailOrID)
+		if userErr != nil {
 			http.Error(w, "User not found", http.StatusNotFound)
 			return
 		}

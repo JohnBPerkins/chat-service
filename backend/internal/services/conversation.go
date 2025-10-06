@@ -103,6 +103,30 @@ func (s *ConversationService) CreateConversation(ctx context.Context, req *model
 		if err != nil {
 			return nil, fmt.Errorf("failed to add participant %s: %w", memberID, err)
 		}
+
+		// Publish participant update event for each new member (if NATS is available)
+		if s.nats != nil {
+			user, userErr := s.userService.GetUserByID(ctx, memberID)
+			if userErr == nil {
+				participantUpdateData := &models.WSParticipantUpdateData{
+					ConversationID: conversation.ID,
+					UserID:         memberID,
+					Action:         "added",
+					User:           user,
+					UpdatedBy:      sanitizedCreatorID,
+				}
+
+				dataBytes, marshalErr := json.Marshal(participantUpdateData)
+				if marshalErr != nil {
+					log.Printf("Failed to marshal participant update data: %v", marshalErr)
+				} else {
+					subject := fmt.Sprintf("chat.conversation.%s.participant", conversation.ID)
+					if publishErr := s.nats.Conn.Publish(subject, dataBytes); publishErr != nil {
+						log.Printf("Failed to publish participant update: %v", publishErr)
+					}
+				}
+			}
+		}
 	}
 
 	return conversation, nil
