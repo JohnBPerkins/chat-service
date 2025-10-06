@@ -89,6 +89,7 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 				ClientMsgID:    existingMessage.ClientMsgID,
 				Body:           existingMessage.Body,
 				CreatedAt:      existingMessage.CreatedAt,
+				EditedAt:       existingMessage.EditedAt,
 			}
 
 			// Fetch sender information
@@ -109,6 +110,7 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 		ClientMsgID:    message.ClientMsgID,
 		Body:           sanitizedBody,
 		CreatedAt:      message.CreatedAt,
+		EditedAt:       message.EditedAt,
 	}
 
 	// Fetch sender information
@@ -197,6 +199,7 @@ func (s *MessageService) GetMessages(ctx context.Context, conversationID string,
 			ClientMsgID:    msg.ClientMsgID,
 			Body:           msg.Body,
 			CreatedAt:      msg.CreatedAt,
+			EditedAt:       msg.EditedAt,
 		}
 
 		// Fetch sender information
@@ -333,6 +336,94 @@ func (s *MessageService) DeleteMessage(ctx context.Context, messageID int64, use
 	}
 
 	return nil
+}
+
+func (s *MessageService) EditMessage(ctx context.Context, messageID int64, newBody string, userID string) (*models.MessageWithSender, error) {
+	// Validate user ID
+	sanitizedUserID, err := validation.ValidateUserID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	// Sanitize new message body
+	sanitizedBody, err := validation.SanitizeString(newBody, 10000)
+	if err != nil {
+		return nil, fmt.Errorf("invalid message body: %w", err)
+	}
+
+	collection := s.db.DB.Collection("messages")
+
+	// First, find the message to verify ownership
+	var message models.Message
+	err = collection.FindOne(ctx, primitive.M{"_id": messageID}).Decode(&message)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, fmt.Errorf("message not found")
+		}
+		return nil, fmt.Errorf("failed to find message: %w", err)
+	}
+
+	// Check if the user is the sender
+	if message.SenderID != sanitizedUserID {
+		return nil, fmt.Errorf("user not authorized to edit this message")
+	}
+
+	// Update the message
+	editedAt := time.Now()
+	update := bson.M{
+		"$set": bson.M{
+			"body":     sanitizedBody,
+			"editedAt": editedAt,
+		},
+	}
+
+	result, err := collection.UpdateOne(ctx, primitive.M{"_id": messageID}, update)
+	if err != nil {
+		return nil, fmt.Errorf("failed to edit message: %w", err)
+	}
+
+	if result.MatchedCount == 0 {
+		return nil, fmt.Errorf("message not found")
+	}
+
+	// Create updated message object
+	message.Body = sanitizedBody
+	message.EditedAt = &editedAt
+
+	// Publish edit event to WebSocket (if NATS is available)
+	if s.nats != nil {
+		editData := &models.WSMessageEditedData{
+			ID:             message.ID,
+			ConversationID: message.ConversationID,
+			Body:           sanitizedBody,
+			EditedAt:       editedAt,
+			EditedBy:       sanitizedUserID,
+		}
+
+		err = s.nats.PublishMessage(message.ConversationID, editData)
+		if err != nil {
+			// Log error but don't fail the request - message is already edited
+			fmt.Printf("Failed to publish message edit to NATS: %v\n", err)
+		}
+	}
+
+	// Convert to MessageWithSender and populate sender info
+	messageWithSender := &models.MessageWithSender{
+		ID:             message.ID,
+		ConversationID: message.ConversationID,
+		SenderID:       message.SenderID,
+		ClientMsgID:    message.ClientMsgID,
+		Body:           message.Body,
+		CreatedAt:      message.CreatedAt,
+		EditedAt:       message.EditedAt,
+	}
+
+	// Fetch sender information
+	if sender, err := s.userService.GetUserByID(ctx, message.SenderID); err == nil {
+		messageWithSender.Sender = sender
+	}
+
+	return messageWithSender, nil
 }
 
 // generateSnowflakeID is a simplified snowflake ID generator

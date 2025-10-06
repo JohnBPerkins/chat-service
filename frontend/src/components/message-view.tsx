@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Send, Loader2, Settings } from 'lucide-react'
+import { Send, Loader2, Settings, Edit2, Check, X } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
 import { v4 as uuidv4 } from 'uuid'
@@ -24,10 +24,12 @@ export function MessageView({ conversation }: MessageViewProps) {
   const { data: session } = useSession()
   const [messageText, setMessageText] = useState('')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null)
+  const [editText, setEditText] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
 
-  const { subscribe, unsubscribe, sendMessage } = useWebSocket()
+  const { subscribe, unsubscribe, sendMessage, editMessage } = useWebSocket()
 
   const { typingText, isAnyoneTyping, startTyping, stopTyping } = useTyping({
     conversationId: conversation.id,
@@ -129,6 +131,33 @@ export function MessageView({ conversation }: MessageViewProps) {
     }
   }
 
+  const handleEditMessage = (messageId: number, currentBody: string) => {
+    setEditingMessageId(messageId)
+    setEditText(currentBody)
+  }
+
+  const handleSaveEdit = (messageId: number) => {
+    if (!editText.trim()) return
+
+    editMessage(conversation.id, messageId, editText.trim())
+    setEditingMessageId(null)
+    setEditText('')
+  }
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null)
+    setEditText('')
+  }
+
+  const handleEditKeyPress = (e: React.KeyboardEvent, messageId: number) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSaveEdit(messageId)
+    } else if (e.key === 'Escape') {
+      handleCancelEdit()
+    }
+  }
+
   if (isLoadingInitial) {
     return (
       <div className="flex flex-1 flex-col">
@@ -225,26 +254,74 @@ export function MessageView({ conversation }: MessageViewProps) {
             <p className="text-sm">Send the first message to start the conversation</p>
           </div>
         ) : (
-          messages.map(message => (
-            <div key={message.id} className="flex gap-3">
-              <img
-                src={message.sender?.avatarUrl || '/default-avatar.svg'}
-                alt={message.sender?.name || 'User'}
-                className="h-8 w-8 flex-shrink-0 rounded-full"
-              />
-              <div className="min-w-0 flex-1">
-                <div className="mb-1 flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-900">
-                    {message.sender?.name || 'Unknown User'}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
-                  </span>
+          messages.map(message => {
+            const isOwnMessage = message.senderId === session?.user.id
+            const isEditing = editingMessageId === message.id
+
+            return (
+              <div key={message.id} className="flex gap-3 group">
+                <img
+                  src={message.sender?.avatarUrl || '/default-avatar.svg'}
+                  alt={message.sender?.name || 'User'}
+                  className="h-8 w-8 flex-shrink-0 rounded-full"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-900">
+                      {message.sender?.name || 'Unknown User'}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+                    </span>
+                    {message.editedAt && (
+                      <span className="text-xs text-gray-400 italic">(edited)</span>
+                    )}
+                    {isOwnMessage && !isEditing && (
+                      <button
+                        onClick={() => handleEditMessage(message.id, message.body)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded"
+                        title="Edit message"
+                      >
+                        <Edit2 className="w-3 h-3 text-gray-500" />
+                      </button>
+                    )}
+                  </div>
+                  {isEditing ? (
+                    <div className="flex gap-2 items-start">
+                      <textarea
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        onKeyDown={(e) => handleEditKeyPress(e, message.id)}
+                        className="flex-1 text-sm p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        rows={2}
+                        autoFocus
+                      />
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleSaveEdit(message.id)}
+                          className="p-1.5 bg-blue-600 text-white rounded hover:bg-blue-700"
+                          title="Save"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={handleCancelEdit}
+                          className="p-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                          title="Cancel"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap break-all text-gray-700 min-w-0" style={{wordBreak: 'break-word', overflowWrap: 'anywhere'}}>
+                      {message.body}
+                    </p>
+                  )}
                 </div>
-                <p className="text-sm whitespace-pre-wrap break-all text-gray-700 min-w-0" style={{wordBreak: 'break-word', overflowWrap: 'anywhere'}}>{message.body}</p>
               </div>
-            </div>
-          ))
+            )
+          })
         )}
 
         {/* Typing Indicator */}

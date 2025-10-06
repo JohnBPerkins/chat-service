@@ -4,6 +4,7 @@ import type {
   SubscribeFrame,
   UnsubscribeFrame,
   MessageSendFrame,
+  MessageEditFrame,
   TypingUpdateFrame,
   ReceiptReadFrame,
   FriendRequestSendFrame,
@@ -11,6 +12,7 @@ import type {
   FriendRemoveFrame,
   MessageAckFrame,
   MessageNewFrame,
+  MessageEditedFrame,
   MessageDeletedFrame,
   TypingUpdateEventFrame,
   ReceiptUpdateFrame,
@@ -28,6 +30,7 @@ type EventHandler<T = unknown> = (data: T) => void
 interface WebSocketEventHandlers {
   'message.ack': EventHandler<MessageAckFrame>
   'message.new': EventHandler<MessageNewFrame>
+  'message.edited': EventHandler<MessageEditedFrame>
   'message.deleted': EventHandler<MessageDeletedFrame>
   'typing.update': EventHandler<TypingUpdateEventFrame>
   'receipt.update': EventHandler<ReceiptUpdateFrame>
@@ -37,6 +40,8 @@ interface WebSocketEventHandlers {
   'friend.request.accepted': EventHandler<FriendRequestAcceptedFrame>
   'friend.request.rejected': EventHandler<FriendRequestRejectedFrame>
   'friend.removed': EventHandler<FriendRemovedFrame>
+  'conversation.added': EventHandler<import('@/types/chat').ConversationAddedFrame>
+  'conversation.removed': EventHandler<import('@/types/chat').ConversationRemovedFrame>
   'error': EventHandler<ErrorFrame>
   'open': EventHandler<void>
   'close': EventHandler<void>
@@ -198,6 +203,14 @@ export class ChatWebSocket {
     this.sendFrame<MessageSendFrame>('message.send', {
       conversationId,
       clientMsgId,
+      body,
+    })
+  }
+
+  editMessage(conversationId: string, messageId: number, body: string): void {
+    this.sendFrame<MessageEditFrame>('message.edit', {
+      conversationId,
+      messageId,
       body,
     })
   }

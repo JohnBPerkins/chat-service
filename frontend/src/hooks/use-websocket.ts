@@ -5,6 +5,7 @@ import { getChatWebSocket } from '@/lib/websocket'
 import type {
   MessageAckFrame,
   MessageNewFrame,
+  MessageEditedFrame,
   MessageDeletedFrame,
   TypingUpdateEventFrame,
   ReceiptUpdateFrame,
@@ -22,6 +23,7 @@ import type {
 interface UseWebSocketOptions {
   onMessageReceived?: (message: MessageNewFrame) => void
   onMessageAck?: (ack: MessageAckFrame) => void
+  onMessageEdited?: (edit: MessageEditedFrame) => void
   onMessageDeleted?: (deletion: MessageDeletedFrame) => void
   onTypingUpdate?: (typing: TypingUpdateEventFrame) => void
   onReceiptUpdate?: (receipt: ReceiptUpdateFrame) => void
@@ -89,6 +91,17 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     ws.on('message.ack', (data: MessageAckFrame) => {
       console.log('Message acknowledged:', data)
       options.onMessageAck?.(data)
+    })
+
+    ws.on('message.edited', (data: MessageEditedFrame) => {
+      console.log('Message edited:', data)
+
+      // Invalidate and refetch messages for the conversation
+      queryClient.invalidateQueries({
+        queryKey: ['messages', data.conversationId]
+      })
+
+      options.onMessageEdited?.(data)
     })
 
     ws.on('message.deleted', (data: MessageDeletedFrame) => {
@@ -258,6 +271,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       ws.off('reconnect')
       ws.off('message.new')
       ws.off('message.ack')
+      ws.off('message.edited')
       ws.off('message.deleted')
       ws.off('typing.update')
       ws.off('receipt.update')
@@ -315,12 +329,17 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     wsRef.current.removeFriend(friendId)
   }
 
+  const editMessage = (conversationId: string, messageId: number, body: string) => {
+    wsRef.current.editMessage(conversationId, messageId, body)
+  }
+
   return {
     isConnected,
     connectionError,
     subscribe,
     unsubscribe,
     sendMessage,
+    editMessage,
     updateTyping,
     markAsRead,
     sendFriendRequest,

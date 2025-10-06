@@ -182,7 +182,9 @@ export function ConversationSidebar({
           </div>
         ) : (
           <div className="overflow-y-auto p-4 space-y-2">
-            {conversations.map((conversation) => (
+            {conversations
+              .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
+              .map((conversation) => (
               <button
                 key={conversation.id}
                 onClick={() => onConversationSelect(conversation)}

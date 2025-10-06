@@ -50,6 +50,7 @@ export interface Message {
   clientMsgId: string
   body: string
   createdAt: string
+  editedAt?: string
   sender?: User
 }
 
@@ -91,6 +92,12 @@ export interface MessageSendFrame {
   body: string
 }
 
+export interface MessageEditFrame {
+  conversationId: string
+  messageId: number
+  body: string
+}
+
 export interface TypingUpdateFrame {
   conversationId: string
   isTyping: boolean
@@ -123,6 +130,14 @@ export interface MessageNewFrame {
   senderId: string
   body: string
   createdAt: string
+}
+
+export interface MessageEditedFrame {
+  id: number
+  conversationId: string
+  body: string
+  editedAt: string
+  editedBy: string
 }
 
 export interface TypingUpdateEventFrame {

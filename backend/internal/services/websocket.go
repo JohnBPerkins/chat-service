@@ -223,6 +223,27 @@ func (c *Client) handleFrame(frame *models.WSFrame) {
 		}
 		c.sendFrame("message.ack", ackData)
 
+	case "message.edit":
+		var data models.WSMessageEditData
+		dataBytes, err := json.Marshal(frame.Data)
+		if err != nil {
+			c.sendError("INVALID_DATA", "Invalid edit data format")
+			return
+		}
+		if err := json.Unmarshal(dataBytes, &data); err != nil {
+			c.sendError("INVALID_DATA", "Invalid edit data")
+			return
+		}
+
+		message, err := c.Hub.messageService.EditMessage(ctx, data.MessageID, data.Body, c.UserID)
+		if err != nil {
+			c.sendError("EDIT_FAILED", fmt.Sprintf("Failed to edit message: %v", err))
+			return
+		}
+
+		// Send acknowledgment with updated message
+		c.sendFrame("message.edited", message)
+
 	case "typing.update":
 		var data models.WSTypingUpdateData
 		dataBytes, err := json.Marshal(frame.Data)
@@ -445,6 +466,18 @@ func (h *WebSocketHub) setupNATSSubscriptions(sub *ConversationSubscription) {
 				Type: "message.deleted",
 				TS:   time.Now().UnixMilli(),
 				Data: deletionData,
+			}
+			h.broadcastToSubscription(sub, frame)
+			return
+		}
+
+		// Try to unmarshal as message edit
+		var editData models.WSMessageEditedData
+		if err := json.Unmarshal(msg.Data, &editData); err == nil && editData.EditedBy != "" {
+			frame := &models.WSFrame{
+				Type: "message.edited",
+				TS:   time.Now().UnixMilli(),
+				Data: editData,
 			}
 			h.broadcastToSubscription(sub, frame)
 			return

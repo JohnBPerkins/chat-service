@@ -41,6 +41,13 @@ export function ChatApp() {
         setSelectedConversation(null)
       }
     },
+    onConversationRemoved: (data) => {
+      console.log('Conversation removed:', data)
+      // Clear selected conversation if user was removed from it
+      if (selectedConversation?.id === data.conversationId) {
+        setSelectedConversation(null)
+      }
+    },
   })
 
   const isAuthenticated = status === 'authenticated' && !!session

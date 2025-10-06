@@ -73,23 +73,25 @@ type Participant struct {
 
 // Message represents a chat message
 type Message struct {
-	ID             int64     `bson:"_id" json:"id"` // Snowflake ID
-	ConversationID string    `bson:"conversationId" json:"conversationId"`
-	SenderID       string    `bson:"senderId" json:"senderId"`
-	ClientMsgID    string    `bson:"clientMsgId" json:"clientMsgId"`
-	Body           string    `bson:"body" json:"body"`
-	CreatedAt      time.Time `bson:"createdAt" json:"createdAt"`
+	ID             int64      `bson:"_id" json:"id"` // Snowflake ID
+	ConversationID string     `bson:"conversationId" json:"conversationId"`
+	SenderID       string     `bson:"senderId" json:"senderId"`
+	ClientMsgID    string     `bson:"clientMsgId" json:"clientMsgId"`
+	Body           string     `bson:"body" json:"body"`
+	CreatedAt      time.Time  `bson:"createdAt" json:"createdAt"`
+	EditedAt       *time.Time `bson:"editedAt,omitempty" json:"editedAt,omitempty"`
 }
 
 // MessageWithSender represents a message with populated sender info for API responses
 type MessageWithSender struct {
-	ID             int64     `json:"id"`
-	ConversationID string    `json:"conversationId"`
-	SenderID       string    `json:"senderId"`
-	ClientMsgID    string    `json:"clientMsgId"`
-	Body           string    `json:"body"`
-	CreatedAt      time.Time `json:"createdAt"`
-	Sender         *User     `json:"sender,omitempty"`
+	ID             int64      `json:"id"`
+	ConversationID string     `json:"conversationId"`
+	SenderID       string     `json:"senderId"`
+	ClientMsgID    string     `json:"clientMsgId"`
+	Body           string     `json:"body"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	EditedAt       *time.Time `json:"editedAt,omitempty"`
+	Sender         *User      `json:"sender,omitempty"`
 }
 
 // CreateConversationRequest represents the request to create a new conversation
@@ -134,6 +136,12 @@ type WSUnsubscribeData struct {
 type WSMessageSendData struct {
 	ConversationID string `json:"conversationId"`
 	ClientMsgID    string `json:"clientMsgId"`
+	Body           string `json:"body"`
+}
+
+type WSMessageEditData struct {
+	ConversationID string `json:"conversationId"`
+	MessageID      int64  `json:"messageId"`
 	Body           string `json:"body"`
 }
 
@@ -193,6 +201,14 @@ type WSMessageDeletedData struct {
 	ID             int64  `json:"id"`
 	ConversationID string `json:"conversationId"`
 	DeletedBy      string `json:"deletedBy"`
+}
+
+type WSMessageEditedData struct {
+	ID             int64     `json:"id"`
+	ConversationID string    `json:"conversationId"`
+	Body           string    `json:"body"`
+	EditedAt       time.Time `json:"editedAt"`
+	EditedBy       string    `json:"editedBy"`
 }
 
 type WSParticipantUpdateData struct {
