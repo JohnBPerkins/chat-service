@@ -14,6 +14,7 @@ import type {
   FriendRequestReceivedFrame,
   FriendRequestAcceptedFrame,
   FriendRequestRejectedFrame,
+  FriendRemovedFrame,
 } from '@/types/chat'
 
 interface UseWebSocketOptions {
@@ -27,6 +28,7 @@ interface UseWebSocketOptions {
   onFriendRequestReceived?: (request: FriendRequestReceivedFrame) => void
   onFriendRequestAccepted?: (acceptance: FriendRequestAcceptedFrame) => void
   onFriendRequestRejected?: (rejection: FriendRequestRejectedFrame) => void
+  onFriendRemoved?: (removal: FriendRemovedFrame) => void
   onError?: (error: ErrorFrame) => void
 }
 
@@ -192,6 +194,20 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       options.onFriendRequestRejected?.(data)
     })
 
+    ws.on('friend.removed', (data: FriendRemovedFrame) => {
+      console.log('Friend removed:', data)
+
+      // Invalidate friends list and conversations
+      queryClient.invalidateQueries({
+        queryKey: ['friends']
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['conversations']
+      })
+
+      options.onFriendRemoved?.(data)
+    })
+
     ws.on('error', (data: ErrorFrame) => {
       console.error('WebSocket error:', data)
       setConnectionError(data.message)
@@ -219,6 +235,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       ws.off('friend.request.received')
       ws.off('friend.request.accepted')
       ws.off('friend.request.rejected')
+      ws.off('friend.removed')
       ws.off('error')
     }
   }, [session?.accessToken, queryClient, options])
@@ -261,6 +278,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     wsRef.current.respondToFriendRequest(requestId, accept)
   }
 
+  const removeFriend = (friendId: string) => {
+    wsRef.current.removeFriend(friendId)
+  }
+
   return {
     isConnected,
     connectionError,
@@ -271,6 +292,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     markAsRead,
     sendFriendRequest,
     respondToFriendRequest,
+    removeFriend,
     webSocket: wsRef.current,
   }
 }

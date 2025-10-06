@@ -157,6 +157,10 @@ type WSFriendRequestRespondData struct {
 	Accept    bool   `json:"accept"`
 }
 
+type WSFriendRemoveData struct {
+	FriendID string `json:"friendId"`
+}
+
 // WebSocket response types
 type WSMessageAckData struct {
 	ClientMsgID string    `json:"clientMsgId"`
@@ -225,6 +229,11 @@ type WSFriendRequestAcceptedData struct {
 type WSFriendRequestRejectedData struct {
 	RequestID string `json:"requestId"`
 	ByUserID  string `json:"byUserId"`
+}
+
+type WSFriendRemovedData struct {
+	FriendID       string `json:"friendId"`
+	ConversationID string `json:"conversationId"`
 }
 
 // Pagination types

@@ -178,6 +178,15 @@ export interface FriendRequestRejectedFrame {
   byUserId: string
 }
 
+export interface FriendRemoveFrame {
+  friendId: string
+}
+
+export interface FriendRemovedFrame {
+  friendId: string
+  conversationId: string
+}
+
 // API Response types
 export interface PaginatedMessagesResponse {
   messages: Message[]

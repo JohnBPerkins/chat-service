@@ -9,9 +9,10 @@ import type { User, FriendRequest } from '@/types/chat'
 interface FriendsPanelProps {
   onSendFriendRequest: (email: string) => void
   onRespondToRequest: (requestId: string, accept: boolean) => void
+  onRemoveFriend: (friendId: string) => void
 }
 
-export function FriendsPanel({ onSendFriendRequest, onRespondToRequest }: FriendsPanelProps) {
+export function FriendsPanel({ onSendFriendRequest, onRespondToRequest, onRemoveFriend }: FriendsPanelProps) {
   const [isAddFriendOpen, setIsAddFriendOpen] = useState(false)
   const [friendEmail, setFriendEmail] = useState('')
   const [activeTab, setActiveTab] = useState<'friends' | 'requests'>('friends')
@@ -44,6 +45,12 @@ export function FriendsPanel({ onSendFriendRequest, onRespondToRequest }: Friend
 
   const handleReject = (requestId: string) => {
     onRespondToRequest(requestId, false)
+  }
+
+  const handleRemoveFriend = (friendId: string, friendName: string) => {
+    if (window.confirm(`Are you sure you want to remove ${friendName} as a friend? This will also delete your conversation.`)) {
+      onRemoveFriend(friendId)
+    }
   }
 
   const pendingCount = requests.length
@@ -134,7 +141,7 @@ export function FriendsPanel({ onSendFriendRequest, onRespondToRequest }: Friend
               friends.map((friend) => (
                 <div
                   key={friend.id}
-                  className="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all"
+                  className="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all group"
                 >
                   <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-medium flex-shrink-0">
                     {friend.name?.charAt(0) || friend.email.charAt(0)}
@@ -145,6 +152,13 @@ export function FriendsPanel({ onSendFriendRequest, onRespondToRequest }: Friend
                     </p>
                     <p className="text-white/60 text-xs truncate">{friend.email}</p>
                   </div>
+                  <button
+                    onClick={() => handleRemoveFriend(friend.id, friend.name || friend.email)}
+                    className="opacity-0 group-hover:opacity-100 p-2 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-all text-xs flex-shrink-0"
+                    title="Remove friend"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               ))
             )}

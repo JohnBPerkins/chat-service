@@ -18,6 +18,7 @@ interface ConversationSidebarProps {
   connectionError: string | null
   onSendFriendRequest: (email: string) => void
   onRespondToFriendRequest: (requestId: string, accept: boolean) => void
+  onRemoveFriend: (friendId: string) => void
 }
 
 export function ConversationSidebar({
@@ -27,7 +28,8 @@ export function ConversationSidebar({
   isConnected,
   connectionError,
   onSendFriendRequest,
-  onRespondToFriendRequest
+  onRespondToFriendRequest,
+  onRemoveFriend
 }: ConversationSidebarProps) {
   const { data: session } = useSession()
   const [isNewConversationOpen, setIsNewConversationOpen] = useState(false)
@@ -127,6 +129,7 @@ export function ConversationSidebar({
           <FriendsPanel
             onSendFriendRequest={onSendFriendRequest}
             onRespondToRequest={onRespondToFriendRequest}
+            onRemoveFriend={onRemoveFriend}
           />
         ) : isLoading ? (
           <div className="p-6 space-y-4">

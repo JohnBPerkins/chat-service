@@ -8,6 +8,7 @@ import type {
   ReceiptReadFrame,
   FriendRequestSendFrame,
   FriendRequestRespondFrame,
+  FriendRemoveFrame,
   MessageAckFrame,
   MessageNewFrame,
   MessageDeletedFrame,
@@ -18,6 +19,7 @@ import type {
   FriendRequestReceivedFrame,
   FriendRequestAcceptedFrame,
   FriendRequestRejectedFrame,
+  FriendRemovedFrame,
   ErrorFrame,
 } from '@/types/chat'
 
@@ -34,6 +36,7 @@ interface WebSocketEventHandlers {
   'friend.request.received': EventHandler<FriendRequestReceivedFrame>
   'friend.request.accepted': EventHandler<FriendRequestAcceptedFrame>
   'friend.request.rejected': EventHandler<FriendRequestRejectedFrame>
+  'friend.removed': EventHandler<FriendRemovedFrame>
   'error': EventHandler<ErrorFrame>
   'open': EventHandler<void>
   'close': EventHandler<void>
@@ -226,6 +229,12 @@ export class ChatWebSocket {
     this.sendFrame<FriendRequestRespondFrame>('friend.request.respond', {
       requestId,
       accept,
+    })
+  }
+
+  removeFriend(friendId: string): void {
+    this.sendFrame<FriendRemoveFrame>('friend.remove', {
+      friendId,
     })
   }
 

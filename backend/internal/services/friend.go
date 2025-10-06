@@ -331,11 +331,11 @@ func (s *FriendService) AreFriends(ctx context.Context, user1ID, user2ID string)
 	return true, nil
 }
 
-// GetExistingRequest checks for existing friend request in either direction
+// GetExistingRequest checks for existing PENDING friend request in either direction
 func (s *FriendService) GetExistingRequest(ctx context.Context, user1ID, user2ID string) (*models.FriendRequest, error) {
 	collection := s.db.DB.Collection("friend_requests")
 
-	// Check both directions
+	// Check both directions for PENDING requests only
 	filter := bson.M{
 		"$or": []bson.M{
 			{"fromUserId": user1ID, "toUserId": user2ID, "status": "pending"},
@@ -350,6 +350,86 @@ func (s *FriendService) GetExistingRequest(ctx context.Context, user1ID, user2ID
 	}
 
 	return &request, nil
+}
+
+// RemoveFriend removes a friendship and its associated DM conversation
+func (s *FriendService) RemoveFriend(ctx context.Context, userID, friendID string) error {
+	// Validate inputs
+	sanitizedUserID, err := validation.ValidateUserID(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID: %w", err)
+	}
+	sanitizedFriendID, err := validation.ValidateUserID(friendID)
+	if err != nil {
+		return fmt.Errorf("invalid friend ID: %w", err)
+	}
+
+	// Ensure consistent ordering for friendship ID
+	var smallerID, largerID string
+	if sanitizedUserID < sanitizedFriendID {
+		smallerID = sanitizedUserID
+		largerID = sanitizedFriendID
+	} else {
+		smallerID = sanitizedFriendID
+		largerID = sanitizedUserID
+	}
+
+	friendshipID := fmt.Sprintf("%s:%s", smallerID, largerID)
+
+	// Get the friendship to find the conversation ID
+	friendshipCollection := s.db.DB.Collection("friendships")
+	filter := primitive.M{"_id": friendshipID}
+
+	var friendship models.Friendship
+	err = friendshipCollection.FindOne(ctx, filter).Decode(&friendship)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return fmt.Errorf("friendship not found")
+		}
+		return fmt.Errorf("failed to get friendship: %w", err)
+	}
+
+	// Delete the friendship
+	_, err = friendshipCollection.DeleteOne(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("failed to delete friendship: %w", err)
+	}
+
+	// Delete the associated DM conversation and its data
+	conversationID := friendship.ConversationID
+
+	// Delete conversation
+	conversationCollection := s.db.DB.Collection("conversations")
+	_, err = conversationCollection.DeleteOne(ctx, primitive.M{"_id": conversationID})
+	if err != nil {
+		fmt.Printf("Failed to delete conversation: %v\n", err)
+	}
+
+	// Delete participants
+	participantCollection := s.db.DB.Collection("participants")
+	_, err = participantCollection.DeleteMany(ctx, primitive.M{"conversationId": conversationID})
+	if err != nil {
+		fmt.Printf("Failed to delete participants: %v\n", err)
+	}
+
+	// Delete messages
+	messageCollection := s.db.DB.Collection("messages")
+	_, err = messageCollection.DeleteMany(ctx, primitive.M{"conversationId": conversationID})
+	if err != nil {
+		fmt.Printf("Failed to delete messages: %v\n", err)
+	}
+
+	// Publish friend removed event to both users
+	err = s.PublishFriendRemoved(sanitizedUserID, sanitizedFriendID, conversationID)
+	if err != nil {
+		fmt.Printf("Failed to publish friend removed event: %v\n", err)
+	}
+	err = s.PublishFriendRemoved(sanitizedFriendID, sanitizedUserID, conversationID)
+	if err != nil {
+		fmt.Printf("Failed to publish friend removed event: %v\n", err)
+	}
+
+	return nil
 }
 
 // GetFriends returns all friends for a user
@@ -488,6 +568,22 @@ func (s *FriendService) PublishFriendRequestRejected(toUserID, requestID, byUser
 	dataBytes, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal friend rejected data: %w", err)
+	}
+
+	return s.nats.Conn.Publish(subject, dataBytes)
+}
+
+func (s *FriendService) PublishFriendRemoved(toUserID, friendID, conversationID string) error {
+	subject := fmt.Sprintf("chat.user.%s.friend_removed", toUserID)
+
+	data := &models.WSFriendRemovedData{
+		FriendID:       friendID,
+		ConversationID: conversationID,
+	}
+
+	dataBytes, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal friend removed data: %w", err)
 	}
 
 	return s.nats.Conn.Publish(subject, dataBytes)

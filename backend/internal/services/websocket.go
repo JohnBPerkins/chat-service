@@ -35,6 +35,7 @@ type UserSubscription struct {
 	FriendRequestSub  *natsgo.Subscription
 	FriendAcceptedSub *natsgo.Subscription
 	FriendRejectedSub *natsgo.Subscription
+	FriendRemovedSub  *natsgo.Subscription
 }
 
 type Client struct {
@@ -297,6 +298,27 @@ func (c *Client) handleFrame(frame *models.WSFrame) {
 			// Friendship will be sent via NATS event
 			_ = friendship
 		}
+
+	case "friend.remove":
+		var data models.WSFriendRemoveData
+		dataBytes, err := json.Marshal(frame.Data)
+		if err != nil {
+			c.sendError("INVALID_DATA", "Invalid friend remove data format")
+			return
+		}
+		if err := json.Unmarshal(dataBytes, &data); err != nil {
+			c.sendError("INVALID_DATA", "Invalid friend remove data")
+			return
+		}
+
+		err = c.Hub.friendService.RemoveFriend(ctx, c.UserID, data.FriendID)
+		if err != nil {
+			c.sendError("FRIEND_REMOVE_FAILED", fmt.Sprintf("Failed to remove friend: %v", err))
+			return
+		}
+
+		// Event will be sent via NATS
+		c.sendFrame("friend.removed", map[string]string{"friendId": data.FriendID})
 	}
 }
 
@@ -614,6 +636,9 @@ func (h *WebSocketHub) unsubscribeUserEvents(client *Client) {
 		if sub.FriendRejectedSub != nil {
 			sub.FriendRejectedSub.Unsubscribe()
 		}
+		if sub.FriendRemovedSub != nil {
+			sub.FriendRemovedSub.Unsubscribe()
+		}
 		delete(h.userSubscriptions, client.UserID)
 	}
 }
@@ -685,6 +710,28 @@ func (h *WebSocketHub) setupUserNATSSubscriptions(sub *UserSubscription) {
 		log.Printf("Failed to subscribe to friend rejected: %v", err)
 	}
 	sub.FriendRejectedSub = friendRejectedSub
+
+	// Subscribe to friend removed
+	friendRemovedSubject := fmt.Sprintf("chat.user.%s.friend_removed", sub.UserID)
+	friendRemovedSub, err := h.natsConn.Conn.Subscribe(friendRemovedSubject, func(msg *natsgo.Msg) {
+		var data models.WSFriendRemovedData
+		if err := json.Unmarshal(msg.Data, &data); err != nil {
+			log.Printf("Failed to unmarshal friend removed data: %v", err)
+			return
+		}
+
+		frame := &models.WSFrame{
+			Type: "friend.removed",
+			TS:   time.Now().UnixMilli(),
+			Data: data,
+		}
+
+		h.broadcastToUserSubscription(sub, frame)
+	})
+	if err != nil {
+		log.Printf("Failed to subscribe to friend removed: %v", err)
+	}
+	sub.FriendRemovedSub = friendRemovedSub
 }
 
 // broadcastToUserSubscription broadcasts a frame to all clients in a user subscription

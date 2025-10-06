@@ -20,7 +20,8 @@ export function ChatApp() {
     isConnected,
     connectionError,
     sendFriendRequest,
-    respondToFriendRequest
+    respondToFriendRequest,
+    removeFriend
   } = useWebSocket({
     onFriendRequestReceived: (data) => {
       console.log('Friend request received:', data)
@@ -32,6 +33,13 @@ export function ChatApp() {
     },
     onFriendRequestRejected: (data) => {
       console.log('Friend request rejected:', data)
+    },
+    onFriendRemoved: (data) => {
+      console.log('Friend removed:', data)
+      // Clear selected conversation if it was the DM with removed friend
+      if (selectedConversation?.id === data.conversationId) {
+        setSelectedConversation(null)
+      }
     },
   })
 
@@ -119,6 +127,7 @@ export function ChatApp() {
           connectionError={connectionError}
           onSendFriendRequest={sendFriendRequest}
           onRespondToFriendRequest={respondToFriendRequest}
+          onRemoveFriend={removeFriend}
         />
       </div>
 
