@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -282,6 +283,12 @@ func (s *ConversationService) AddParticipant(ctx context.Context, conversationID
 		return fmt.Errorf("user is already a participant")
 	}
 
+	// Get user info for WebSocket event
+	user, err := s.userService.GetUserByID(ctx, newUserID)
+	if err != nil {
+		return fmt.Errorf("failed to get user info: %w", err)
+	}
+
 	participantsCollection := s.db.DB.Collection("participants")
 
 	// Add the new participant
@@ -293,9 +300,30 @@ func (s *ConversationService) AddParticipant(ctx context.Context, conversationID
 		JoinedAt:       time.Now(),
 	}
 
-	_, err := participantsCollection.InsertOne(ctx, participant)
+	_, err = participantsCollection.InsertOne(ctx, participant)
 	if err != nil {
 		return fmt.Errorf("failed to add participant: %w", err)
+	}
+
+	// Publish WebSocket event (if NATS is available)
+	if s.nats != nil {
+		participantUpdateData := &models.WSParticipantUpdateData{
+			ConversationID: conversationID,
+			UserID:         newUserID,
+			Action:         "added",
+			User:           user,
+			UpdatedBy:      requesterID,
+		}
+
+		dataBytes, err := json.Marshal(participantUpdateData)
+		if err != nil {
+			log.Printf("Failed to marshal participant update data: %v", err)
+		} else {
+			subject := fmt.Sprintf("chat.conversation.%s.participant", conversationID)
+			if err := s.nats.Conn.Publish(subject, dataBytes); err != nil {
+				log.Printf("Failed to publish participant update: %v", err)
+			}
+		}
 	}
 
 	return nil

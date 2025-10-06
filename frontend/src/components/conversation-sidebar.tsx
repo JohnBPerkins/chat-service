@@ -46,6 +46,15 @@ export function ConversationSidebar({
     refetchInterval: 30000,
   })
 
+  // Fetch pending friend requests count for badge
+  const { data: friendRequests = [] } = useQuery({
+    queryKey: ['friend-requests'],
+    queryFn: () => apiClient.getPendingFriendRequests(),
+    enabled: Boolean(isAuthenticated),
+  })
+
+  const pendingRequestsCount = friendRequests.length
+
   const handleSignOut = () => {
     signOut({ callbackUrl: '/' })
   }
@@ -85,7 +94,7 @@ export function ConversationSidebar({
             </button>
             <button
               onClick={() => setActiveTab('friends')}
-              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all relative ${
                 activeTab === 'friends'
                   ? 'bg-white/20 text-white'
                   : 'text-white/60 hover:text-white hover:bg-white/10'
@@ -93,6 +102,11 @@ export function ConversationSidebar({
             >
               <UserPlus className="w-4 h-4" />
               <span className="hidden sm:inline">Friends</span>
+              {pendingRequestsCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold">
+                  {pendingRequestsCount}
+                </span>
+              )}
             </button>
           </div>
         )}

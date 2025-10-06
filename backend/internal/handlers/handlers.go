@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/JohnBPerkins/chat-service/backend/internal/models"
@@ -430,10 +431,22 @@ func (h *Handlers) RemoveParticipant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetUserID := chi.URLParam(r, "userId")
-	if targetUserID == "" {
-		http.Error(w, "Target user ID required", http.StatusBadRequest)
+	targetUserEmailOrID := chi.URLParam(r, "userId")
+	if targetUserEmailOrID == "" {
+		http.Error(w, "Target user email or ID required", http.StatusBadRequest)
 		return
+	}
+
+	// Convert email to user ID if needed
+	targetUserID := targetUserEmailOrID
+	// Check if it looks like an email (contains @)
+	if strings.Contains(targetUserEmailOrID, "@") {
+		user, err := h.UserService.GetUserByEmail(r.Context(), targetUserEmailOrID)
+		if err != nil {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+		targetUserID = user.ID
 	}
 
 	err := h.ConversationService.RemoveParticipant(r.Context(), conversationID, userID, targetUserID)
