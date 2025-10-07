@@ -29,7 +29,7 @@ export interface Conversation {
   title?: string
   createdAt: string
   lastMessageAt: string
-  participants?: Participant[]
+  participants?: User[] // Backend sends User[] not Participant[]
   lastMessage?: Message
 }
 

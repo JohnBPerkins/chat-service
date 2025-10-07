@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import type { TypingUpdateEventFrame, Participant } from '@/types/chat'
+import type { TypingUpdateEventFrame, User } from '@/types/chat'
 
 interface TypingUser {
   userId: string
@@ -10,7 +10,7 @@ interface TypingUser {
 interface UseTypingOptions {
   conversationId: string
   currentUserId: string
-  participants?: Participant[]
+  participants?: User[] // Backend sends User[] not Participant[]
   typingTimeout?: number // milliseconds
   updateTyping?: (conversationId: string, isTyping: boolean) => void
 }
@@ -27,9 +27,16 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
   updateTypingRef.current = updateTyping
 
   // Helper to get user name from participants
+  // Note: Participants are User objects (backend sends User[], not Participant[])
   const getUserName = useCallback((userId: string): string => {
-    const participant = participants.find(p => p.userId === userId)
-    return participant?.user?.name || participant?.user?.email || 'Someone'
+    console.log('🔍 getUserName called with userId:', userId)
+    console.log('🔍 All participants:', participants)
+
+    // userId in typing events is the user's email
+    const user = participants.find(p => p.email === userId)
+    console.log('🔍 Found user:', user)
+
+    return user?.name || user?.email || 'Someone'
   }, [participants])
 
   // Handler for typing updates from WebSocket
