@@ -31,7 +31,9 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
 
   const { updateTyping: updateTypingWs } = useWebSocket({
     onTypingUpdate: (data: TypingUpdateEventFrame) => {
-      console.log('📨 Received typing update:', data)
+      console.log('📨 [useTyping] Received typing update:', data)
+      console.log('📨 [useTyping] conversationId match?', data.conversationId, '===', conversationId)
+      console.log('📨 [useTyping] currentUserId:', currentUserId)
 
       if (data.conversationId !== conversationId) {
         console.log('⚠️ Different conversation, ignoring')
