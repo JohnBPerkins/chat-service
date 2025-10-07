@@ -38,10 +38,15 @@ export function MessageArea({
   const queryClient = useQueryClient()
 
   // First, get the typing state manager
+  console.log('🔧 MessageArea: Setting up typing for conversation:', conversation.id)
   const typingState = useTyping({
     conversationId: conversation.id,
     currentUserId: session?.user.id || '',
     participants: conversation.participants,
+  })
+  console.log('🔧 MessageArea: Typing state:', {
+    typingText: typingState.typingText,
+    isAnyoneTyping: typingState.isAnyoneTyping
   })
 
   // Then connect WebSocket with the typing handler
@@ -551,7 +556,10 @@ export function MessageArea({
         )}
 
         {/* Typing Indicator */}
-        <TypingIndicator text={typingText} show={isAnyoneTyping} />
+        {(() => {
+          console.log('🎬 About to render TypingIndicator:', { typingText, isAnyoneTyping })
+          return <TypingIndicator text={typingText} show={isAnyoneTyping} />
+        })()}
 
         <div ref={messagesEndRef} />
       </div>
