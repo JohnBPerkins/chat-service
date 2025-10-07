@@ -37,6 +37,8 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
     console.log('📨 [useTyping] Received typing update:', data)
     console.log('📨 [useTyping] conversationId match?', data.conversationId, '===', conversationId)
     console.log('📨 [useTyping] currentUserId:', currentUserId)
+    console.log('📨 [useTyping] data.userId:', data.userId)
+    console.log('📨 [useTyping] userId comparison:', data.userId, '===', currentUserId, '=', data.userId === currentUserId)
 
     if (data.conversationId !== conversationId) {
       console.log('⚠️ Different conversation, ignoring')
@@ -48,14 +50,19 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
       return
     }
 
+    console.log('✅ Accepting typing event from other user')
+
     setTypingUsers(prev => {
       const newTypingUsers = new Map(prev)
 
       if (data.isTyping) {
-        console.log('👤 User started typing:', getUserName(data.userId))
+        const userName = getUserName(data.userId)
+        console.log('👤 User started typing:', userName)
+        console.log('👤 Participants available:', participants)
+        console.log('👤 Looking for userId:', data.userId, 'in participants')
         newTypingUsers.set(data.userId, {
           userId: data.userId,
-          name: getUserName(data.userId),
+          name: userName,
           timestamp: Date.now(),
         })
       } else {

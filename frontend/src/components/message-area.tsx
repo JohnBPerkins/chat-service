@@ -39,6 +39,8 @@ export function MessageArea({
 
   // First, get the typing state manager
   console.log('🔧 MessageArea: Setting up typing for conversation:', conversation.id)
+  console.log('🔧 MessageArea: session.user:', session?.user)
+  console.log('🔧 MessageArea: currentUserId (session.user.id):', session?.user.id)
   const typingState = useTyping({
     conversationId: conversation.id,
     currentUserId: session?.user.id || '',
