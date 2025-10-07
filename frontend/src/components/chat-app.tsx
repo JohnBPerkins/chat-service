@@ -44,20 +44,10 @@ export function ChatApp() {
       }
     },
     onConversationRemoved: (data) => {
-      console.log('🔍 DEBUG: Conversation removed event received:', data)
-      console.log('🔍 DEBUG: Current selectedConversation:', selectedConversation)
-      console.log('🔍 DEBUG: Comparison:', {
-        dataConversationId: data.conversationId,
-        selectedId: selectedConversation?.id,
-        matches: selectedConversation?.id === data.conversationId
-      })
-
+      console.log('Conversation removed:', data)
       // Clear selected conversation if user was removed from it
       if (selectedConversation?.id === data.conversationId) {
-        console.log('🔍 DEBUG: Match found! Clearing selected conversation...')
         setSelectedConversation(null)
-      } else {
-        console.log('🔍 DEBUG: No match, not clearing selected conversation')
       }
     },
   })
