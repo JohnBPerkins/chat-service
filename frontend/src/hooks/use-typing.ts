@@ -189,6 +189,11 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
     typingUsers: Array.from(typingUsers.values())
   })
 
+  // Method to set the updateTyping function after initialization
+  const setUpdateTyping = useCallback((fn: (conversationId: string, isTyping: boolean) => void) => {
+    updateTypingRef.current = fn
+  }, [])
+
   return {
     typingUsers: getTypingUsers(),
     typingText,
@@ -197,5 +202,6 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
     stopTyping,
     isTyping,
     handleTypingUpdate,
+    setUpdateTyping,
   }
 }

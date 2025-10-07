@@ -37,19 +37,23 @@ export function MessageArea({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
 
-  const { sendMessage, editMessage, updateTyping } = useWebSocket({})
-
-  const { typingText, isAnyoneTyping, startTyping, stopTyping, handleTypingUpdate } = useTyping({
+  // First, get the typing state manager
+  const typingState = useTyping({
     conversationId: conversation.id,
     currentUserId: session?.user.id || '',
     participants: conversation.participants,
-    updateTyping,
   })
 
-  // Re-register typing handler when it changes
-  const { } = useWebSocket({
-    onTypingUpdate: handleTypingUpdate,
+  // Then connect WebSocket with the typing handler
+  const { sendMessage, editMessage, updateTyping } = useWebSocket({
+    onTypingUpdate: typingState.handleTypingUpdate,
   })
+
+  // Update the typing hook with the updateTyping function
+  typingState.setUpdateTyping(updateTyping)
+
+  // Extract typing utilities
+  const { typingText, isAnyoneTyping, startTyping, stopTyping } = typingState
 
   // Use paginated messages with infinite scrolling
   const { messages, hasMore, isLoadingInitial, isLoadingMore, loadMoreMessages, error } =
