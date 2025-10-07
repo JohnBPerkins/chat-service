@@ -21,7 +21,9 @@ export function ChatApp() {
     connectionError,
     sendFriendRequest,
     respondToFriendRequest,
-    removeFriend
+    removeFriend,
+    subscribe,
+    unsubscribe
   } = useWebSocket({
     onFriendRequestReceived: (data) => {
       console.log('Friend request received:', data)
@@ -81,6 +83,23 @@ export function ChatApp() {
       }
     }
   }, [conversations, selectedConversation])
+
+  // Subscribe to all conversations for real-time updates
+  useEffect(() => {
+    if (!conversations || !isConnected) return
+
+    // Subscribe to all conversations
+    conversations.forEach(conversation => {
+      subscribe(conversation.id)
+    })
+
+    // Cleanup: unsubscribe from all on unmount
+    return () => {
+      conversations.forEach(conversation => {
+        unsubscribe(conversation.id)
+      })
+    }
+  }, [conversations, isConnected, subscribe, unsubscribe])
 
   // Show loading state instead of flashing auth prompt
   if (status === 'loading') {

@@ -239,9 +239,12 @@ export function ConversationSidebar({
                          (conversation.kind === 'group' ? 'Group Chat' : 'Direct Message')}
                       </h3>
                       <span className="text-xs text-white/50">
-                        {formatDistanceToNow(new Date(conversation.lastMessageAt), {
-                          addSuffix: true,
-                        })}
+                        {(() => {
+                          const result = formatDistanceToNow(new Date(conversation.lastMessageAt), {
+                            addSuffix: true,
+                          })
+                          return result === 'less than a minute ago' ? 'now' : result
+                        })()}
                       </span>
                     </div>
 

@@ -37,7 +37,7 @@ export function MessageArea({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
 
-  const { subscribe, unsubscribe, sendMessage, editMessage } = useWebSocket()
+  const { sendMessage, editMessage } = useWebSocket()
 
   const { typingText, isAnyoneTyping, startTyping, stopTyping } = useTyping({
     conversationId: conversation.id,
@@ -162,14 +162,12 @@ export function MessageArea({
     },
   })
 
-  // Subscribe to conversation on mount
+  // Clean up typing indicator when switching conversations
   useEffect(() => {
-    subscribe(conversation.id)
     return () => {
-      unsubscribe(conversation.id)
       stopTyping()
     }
-  }, [conversation.id, subscribe, unsubscribe, stopTyping])
+  }, [conversation.id, stopTyping])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
