@@ -42,6 +42,7 @@ export function MessageArea({
   const { typingText, isAnyoneTyping, startTyping, stopTyping } = useTyping({
     conversationId: conversation.id,
     currentUserId: session?.user.id || '',
+    participants: conversation.participants,
   })
 
   // Use paginated messages with infinite scrolling

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useWebSocket } from './use-websocket'
-import type { TypingUpdateEventFrame } from '@/types/chat'
+import type { TypingUpdateEventFrame, Participant } from '@/types/chat'
 
 interface TypingUser {
   userId: string
@@ -11,14 +11,21 @@ interface TypingUser {
 interface UseTypingOptions {
   conversationId: string
   currentUserId: string
+  participants?: Participant[]
   typingTimeout?: number // milliseconds
 }
 
-export function useTyping({ conversationId, currentUserId, typingTimeout = 3000 }: UseTypingOptions) {
+export function useTyping({ conversationId, currentUserId, participants = [], typingTimeout = 3000 }: UseTypingOptions) {
   const [typingUsers, setTypingUsers] = useState<Map<string, TypingUser>>(new Map())
   const [isTyping, setIsTyping] = useState(false)
   const typingTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const lastTypingTimeRef = useRef<number>(0)
+
+  // Helper to get user name from participants
+  const getUserName = useCallback((userId: string): string => {
+    const participant = participants.find(p => p.userId === userId)
+    return participant?.user?.name || participant?.user?.email || 'Someone'
+  }, [participants])
 
   const { updateTyping } = useWebSocket({
     onTypingUpdate: (data: TypingUpdateEventFrame) => {
@@ -32,7 +39,7 @@ export function useTyping({ conversationId, currentUserId, typingTimeout = 3000 
         if (data.isTyping) {
           newTypingUsers.set(data.userId, {
             userId: data.userId,
-            name: data.userId, // In real app, we'd get this from user data
+            name: getUserName(data.userId),
             timestamp: Date.now(),
           })
         } else {
