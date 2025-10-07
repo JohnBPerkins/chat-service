@@ -126,7 +126,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     ws.on('typing.update', (data: TypingUpdateEventFrame) => {
       console.log('Typing update:', data)
+      console.log('🔍 optionsRef.current.onTypingUpdate exists?', !!optionsRef.current.onTypingUpdate)
+      console.log('🔍 optionsRef.current:', optionsRef.current)
       optionsRef.current.onTypingUpdate?.(data)
+      console.log('🔍 Called onTypingUpdate callback')
     })
 
     ws.on('receipt.update', (data: ReceiptUpdateFrame) => {
