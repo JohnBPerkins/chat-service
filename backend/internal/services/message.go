@@ -102,6 +102,18 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 		return nil, fmt.Errorf("failed to insert message: %w", err)
 	}
 
+	// Update conversation's lastMessageAt
+	conversationsCollection := s.db.DB.Collection("conversations")
+	_, err = conversationsCollection.UpdateOne(
+		ctx,
+		bson.M{"_id": sanitizedConversationID},
+		bson.M{"$set": bson.M{"lastMessageAt": message.CreatedAt}},
+	)
+	if err != nil {
+		// Log but don't fail - message is already persisted
+		fmt.Printf("Failed to update conversation lastMessageAt: %v\n", err)
+	}
+
 	// Convert to MessageWithSender and populate sender info
 	messageWithSender := &models.MessageWithSender{
 		ID:             message.ID,
