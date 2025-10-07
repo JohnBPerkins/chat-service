@@ -30,7 +30,15 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
 
   const { updateTyping } = useWebSocket({
     onTypingUpdate: (data: TypingUpdateEventFrame) => {
-      if (data.conversationId !== conversationId || data.userId === currentUserId) {
+      console.log('📨 Received typing update:', data)
+
+      if (data.conversationId !== conversationId) {
+        console.log('⚠️ Different conversation, ignoring')
+        return
+      }
+
+      if (data.userId === currentUserId) {
+        console.log('⚠️ Own typing event, ignoring')
         return
       }
 
@@ -38,15 +46,18 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
         const newTypingUsers = new Map(prev)
 
         if (data.isTyping) {
+          console.log('👤 User started typing:', getUserName(data.userId))
           newTypingUsers.set(data.userId, {
             userId: data.userId,
             name: getUserName(data.userId),
             timestamp: Date.now(),
           })
         } else {
+          console.log('👤 User stopped typing:', getUserName(data.userId))
           newTypingUsers.delete(data.userId)
         }
 
+        console.log('Current typing users:', Array.from(newTypingUsers.values()))
         return newTypingUsers
       })
     }
@@ -75,9 +86,12 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
   const startTyping = useCallback(() => {
     // If not currently typing, send the initial true
     if (!isTypingRef.current) {
+      console.log('🟢 Sending typing: true')
       updateTyping(conversationId, true)
       isTypingRef.current = true
       setIsTyping(true)
+    } else {
+      console.log('⚪ Already typing, just resetting timeout')
     }
 
     // Clear existing timeout
@@ -87,11 +101,14 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
 
     // Set timeout to stop typing after inactivity
     typingTimeoutRef.current = setTimeout(() => {
+      console.log('⏱️ Typing timeout fired after inactivity')
       stopTyping()
     }, typingTimeout)
   }, [conversationId, updateTyping, typingTimeout])
 
   const stopTyping = useCallback(() => {
+    console.log('🔴 stopTyping called, isTypingRef.current:', isTypingRef.current)
+
     // Always clear timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current)
@@ -100,9 +117,12 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
 
     // Only send false if we're currently typing
     if (isTypingRef.current) {
+      console.log('🔴 Sending typing: false')
       updateTyping(conversationId, false)
       isTypingRef.current = false
       setIsTyping(false)
+    } else {
+      console.log('⚪ Already stopped, not sending false')
     }
   }, [conversationId, updateTyping])
 
