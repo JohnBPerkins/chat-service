@@ -20,6 +20,7 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
   const [isTyping, setIsTyping] = useState(false)
   const typingTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const lastTypingTimeRef = useRef<number>(0)
+  const isTypingRef = useRef(false)
 
   // Helper to get user name from participants
   const getUserName = useCallback((userId: string): string => {
@@ -72,26 +73,22 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
   }, [typingTimeout])
 
   const startTyping = useCallback(() => {
-    const now = Date.now()
-
-    // Only send typing indicator if we haven't sent one recently
-    if (now - lastTypingTimeRef.current > 1000) {
+    // If not currently typing, send the initial true
+    if (!isTypingRef.current) {
       updateTyping(conversationId, true)
-      lastTypingTimeRef.current = now
+      isTypingRef.current = true
+      setIsTyping(true)
     }
-
-    setIsTyping(true)
 
     // Clear existing timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current)
     }
 
-    // Set timeout to stop typing
+    // Set timeout to stop typing after inactivity
     typingTimeoutRef.current = setTimeout(() => {
       stopTyping()
     }, typingTimeout)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, updateTyping, typingTimeout])
 
   const stopTyping = useCallback(() => {
@@ -102,12 +99,11 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
     }
 
     // Only send false if we're currently typing
-    setIsTyping(prev => {
-      if (prev) {
-        updateTyping(conversationId, false)
-      }
-      return false
-    })
+    if (isTypingRef.current) {
+      updateTyping(conversationId, false)
+      isTypingRef.current = false
+      setIsTyping(false)
+    }
   }, [conversationId, updateTyping])
 
   // Cleanup on unmount or conversation change
@@ -117,8 +113,11 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
         clearTimeout(typingTimeoutRef.current)
         typingTimeoutRef.current = undefined
       }
-      // Send false typing indicator on unmount
-      updateTyping(conversationId, false)
+      // Send false typing indicator on unmount if we were typing
+      if (isTypingRef.current) {
+        updateTyping(conversationId, false)
+        isTypingRef.current = false
+      }
     }
   }, [conversationId, updateTyping])
 
