@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Send, Loader2, Users, Trash2, Settings, X } from 'lucide-react'
+import { Send, Loader2, Users, Trash2, Settings, X, Edit2, Check } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { formatRelativeTime } from '@/utils/time'
 import { v4 as uuidv4 } from 'uuid'
@@ -32,10 +32,12 @@ export function MessageArea({
   const { data: session } = useSession()
   const [messageText, setMessageText] = useState('')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null)
+  const [editText, setEditText] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
 
-  const { subscribe, unsubscribe, sendMessage } = useWebSocket()
+  const { subscribe, unsubscribe, sendMessage, editMessage } = useWebSocket()
 
   const { typingText, isAnyoneTyping, startTyping, stopTyping } = useTyping({
     conversationId: conversation.id,
@@ -233,6 +235,33 @@ export function MessageArea({
     if (window.confirm('Are you sure you want to delete this message?')) {
       console.log('User confirmed deletion, calling mutation...')
       deleteMessageMutation.mutate(messageId)
+    }
+  }
+
+  const handleEditMessage = (messageId: number, currentBody: string) => {
+    setEditingMessageId(messageId)
+    setEditText(currentBody)
+  }
+
+  const handleSaveEdit = (messageId: number) => {
+    if (!editText.trim()) return
+
+    editMessage(conversation.id, messageId, editText.trim())
+    setEditingMessageId(null)
+    setEditText('')
+  }
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null)
+    setEditText('')
+  }
+
+  const handleEditKeyPress = (e: React.KeyboardEvent, messageId: number) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSaveEdit(messageId)
+    } else if (e.key === 'Escape') {
+      handleCancelEdit()
     }
   }
 
@@ -438,33 +467,69 @@ export function MessageArea({
 
                       return (
                       <div key={message.id} className={`group/message ${paddingClass} hover:bg-white/5 transition-colors relative`}>
-                        <div className="flex items-start justify-between min-w-0">
-                          <p className="whitespace-pre-wrap break-all text-white/90 flex-1 min-w-0" style={{wordBreak: 'break-word', overflowWrap: 'anywhere'}}>{message.body}</p>
-                          {/* Delete button - only show for current user's messages */}
-                          {(() => {
-                            const shouldShow = message.senderId === session?.user?.email
-                            console.log('Delete button check:', {
-                              messageId: message.id,
-                              senderId: message.senderId,
-                              currentUserEmail: session?.user?.email,
-                              shouldShow
-                            })
-                            return shouldShow
-                          })() && (
-                            <button
-                              onClick={() => handleDeleteMessage(message.id)}
-                              disabled={deleteMessageMutation.isPending}
-                              className="ml-2 opacity-0 group-hover/message:opacity-100 p-1 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 flex-shrink-0"
-                              title="Delete message"
-                            >
-                              {deleteMessageMutation.isPending ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <X className="h-3 w-3" />
+                        {editingMessageId === message.id ? (
+                          // Edit mode
+                          <div className="flex gap-2 items-start">
+                            <textarea
+                              value={editText}
+                              onChange={(e) => setEditText(e.target.value)}
+                              onKeyDown={(e) => handleEditKeyPress(e, message.id)}
+                              className="flex-1 text-sm p-2 border border-blue-400 bg-white/10 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              rows={2}
+                              autoFocus
+                            />
+                            <div className="flex gap-1 flex-shrink-0">
+                              <button
+                                onClick={() => handleSaveEdit(message.id)}
+                                className="p-1.5 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                title="Save"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                className="p-1.5 bg-white/20 text-white rounded hover:bg-white/30"
+                                title="Cancel"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          // View mode
+                          <div className="flex items-start justify-between min-w-0">
+                            <div className="flex-1 min-w-0">
+                              <p className="whitespace-pre-wrap break-all text-white/90" style={{wordBreak: 'break-word', overflowWrap: 'anywhere'}}>{message.body}</p>
+                              {message.editedAt && (
+                                <span className="text-xs text-white/40 italic mt-1 inline-block">(edited)</span>
                               )}
-                            </button>
-                          )}
-                        </div>
+                            </div>
+                            {/* Edit and Delete buttons - only show for current user's messages */}
+                            {message.senderId === session?.user?.email && (
+                              <div className="ml-2 flex gap-1 opacity-0 group-hover/message:opacity-100 transition-all duration-200 flex-shrink-0">
+                                <button
+                                  onClick={() => handleEditMessage(message.id, message.body)}
+                                  className="p-1 rounded-lg text-white/40 hover:text-blue-400 hover:bg-blue-500/10"
+                                  title="Edit message"
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteMessage(message.id)}
+                                  disabled={deleteMessageMutation.isPending}
+                                  className="p-1 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10"
+                                  title="Delete message"
+                                >
+                                  {deleteMessageMutation.isPending ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <X className="h-3 w-3" />
+                                  )}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                       )
                     })}
