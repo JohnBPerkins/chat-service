@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useWebSocket } from './use-websocket'
 import type { TypingUpdateEventFrame, Participant } from '@/types/chat'
 
 interface TypingUser {
@@ -13,15 +12,19 @@ interface UseTypingOptions {
   currentUserId: string
   participants?: Participant[]
   typingTimeout?: number // milliseconds
+  updateTyping?: (conversationId: string, isTyping: boolean) => void
 }
 
-export function useTyping({ conversationId, currentUserId, participants = [], typingTimeout = 3000 }: UseTypingOptions) {
+export function useTyping({ conversationId, currentUserId, participants = [], typingTimeout = 3000, updateTyping }: UseTypingOptions) {
   const [typingUsers, setTypingUsers] = useState<Map<string, TypingUser>>(new Map())
   const [isTyping, setIsTyping] = useState(false)
   const typingTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const lastTypingTimeRef = useRef<number>(0)
   const isTypingRef = useRef(false)
-  const updateTypingRef = useRef<((conversationId: string, isTyping: boolean) => void) | null>(null)
+  const updateTypingRef = useRef(updateTyping)
+
+  // Keep ref updated
+  updateTypingRef.current = updateTyping
 
   // Helper to get user name from participants
   const getUserName = useCallback((userId: string): string => {
@@ -29,45 +32,41 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
     return participant?.user?.name || participant?.user?.email || 'Someone'
   }, [participants])
 
-  const { updateTyping: updateTypingWs } = useWebSocket({
-    onTypingUpdate: (data: TypingUpdateEventFrame) => {
-      console.log('📨 [useTyping] Received typing update:', data)
-      console.log('📨 [useTyping] conversationId match?', data.conversationId, '===', conversationId)
-      console.log('📨 [useTyping] currentUserId:', currentUserId)
+  // Handler for typing updates from WebSocket
+  const handleTypingUpdate = useCallback((data: TypingUpdateEventFrame) => {
+    console.log('📨 [useTyping] Received typing update:', data)
+    console.log('📨 [useTyping] conversationId match?', data.conversationId, '===', conversationId)
+    console.log('📨 [useTyping] currentUserId:', currentUserId)
 
-      if (data.conversationId !== conversationId) {
-        console.log('⚠️ Different conversation, ignoring')
-        return
-      }
-
-      if (data.userId === currentUserId) {
-        console.log('⚠️ Own typing event, ignoring')
-        return
-      }
-
-      setTypingUsers(prev => {
-        const newTypingUsers = new Map(prev)
-
-        if (data.isTyping) {
-          console.log('👤 User started typing:', getUserName(data.userId))
-          newTypingUsers.set(data.userId, {
-            userId: data.userId,
-            name: getUserName(data.userId),
-            timestamp: Date.now(),
-          })
-        } else {
-          console.log('👤 User stopped typing:', getUserName(data.userId))
-          newTypingUsers.delete(data.userId)
-        }
-
-        console.log('Current typing users:', Array.from(newTypingUsers.values()))
-        return newTypingUsers
-      })
+    if (data.conversationId !== conversationId) {
+      console.log('⚠️ Different conversation, ignoring')
+      return
     }
-  })
 
-  // Store updateTyping in ref so callbacks don't recreate
-  updateTypingRef.current = updateTypingWs
+    if (data.userId === currentUserId) {
+      console.log('⚠️ Own typing event, ignoring')
+      return
+    }
+
+    setTypingUsers(prev => {
+      const newTypingUsers = new Map(prev)
+
+      if (data.isTyping) {
+        console.log('👤 User started typing:', getUserName(data.userId))
+        newTypingUsers.set(data.userId, {
+          userId: data.userId,
+          name: getUserName(data.userId),
+          timestamp: Date.now(),
+        })
+      } else {
+        console.log('👤 User stopped typing:', getUserName(data.userId))
+        newTypingUsers.delete(data.userId)
+      }
+
+      console.log('Current typing users:', Array.from(newTypingUsers.values()))
+      return newTypingUsers
+    })
+  }, [conversationId, currentUserId, getUserName])
 
   // Clean up old typing indicators
   useEffect(() => {
@@ -197,5 +196,6 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
     startTyping,
     stopTyping,
     isTyping,
+    handleTypingUpdate,
   }
 }
