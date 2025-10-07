@@ -47,7 +47,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
   // Store callbacks in refs to avoid stale closures
   const optionsRef = useRef(options)
+
+  // IMPORTANT: Update ref synchronously on every render BEFORE effect runs
   optionsRef.current = options
+
+  console.log('🔄 useWebSocket render, options:', {
+    hasOnTypingUpdate: !!options.onTypingUpdate,
+    optionsRefHasIt: !!optionsRef.current.onTypingUpdate
+  })
 
   useEffect(() => {
     const ws = wsRef.current
@@ -55,6 +62,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     if (!session?.accessToken) {
       return
     }
+
+    console.log('🔄 useWebSocket effect running, optionsRef.current:', {
+      hasOnTypingUpdate: !!optionsRef.current.onTypingUpdate
+    })
 
     // Set up event handlers
     ws.on('open', () => {
