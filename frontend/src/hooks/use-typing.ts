@@ -21,6 +21,7 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
   const typingTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const lastTypingTimeRef = useRef<number>(0)
   const isTypingRef = useRef(false)
+  const updateTypingRef = useRef<((conversationId: string, isTyping: boolean) => void) | null>(null)
 
   // Helper to get user name from participants
   const getUserName = useCallback((userId: string): string => {
@@ -28,7 +29,7 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
     return participant?.user?.name || participant?.user?.email || 'Someone'
   }, [participants])
 
-  const { updateTyping } = useWebSocket({
+  const { updateTyping: updateTypingWs } = useWebSocket({
     onTypingUpdate: (data: TypingUpdateEventFrame) => {
       console.log('📨 Received typing update:', data)
 
@@ -63,6 +64,9 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
     }
   })
 
+  // Store updateTyping in ref so callbacks don't recreate
+  updateTypingRef.current = updateTypingWs
+
   // Clean up old typing indicators
   useEffect(() => {
     const interval = setInterval(() => {
@@ -87,7 +91,7 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
     // If not currently typing, send the initial true
     if (!isTypingRef.current) {
       console.log('🟢 Sending typing: true')
-      updateTyping(conversationId, true)
+      updateTypingRef.current?.(conversationId, true)
       isTypingRef.current = true
       setIsTyping(true)
     } else {
@@ -102,9 +106,19 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
     // Set timeout to stop typing after inactivity
     typingTimeoutRef.current = setTimeout(() => {
       console.log('⏱️ Typing timeout fired after inactivity')
-      stopTyping()
+      // Call stopTyping inline to avoid closure issues
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+        typingTimeoutRef.current = undefined
+      }
+      if (isTypingRef.current) {
+        console.log('🔴 Sending typing: false (from timeout)')
+        updateTypingRef.current?.(conversationId, false)
+        isTypingRef.current = false
+        setIsTyping(false)
+      }
     }, typingTimeout)
-  }, [conversationId, updateTyping, typingTimeout])
+  }, [conversationId, typingTimeout])
 
   const stopTyping = useCallback(() => {
     console.log('🔴 stopTyping called, isTypingRef.current:', isTypingRef.current)
@@ -117,14 +131,14 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
 
     // Only send false if we're currently typing
     if (isTypingRef.current) {
-      console.log('🔴 Sending typing: false')
-      updateTyping(conversationId, false)
+      console.log('🔴 Sending typing: false (from stopTyping)')
+      updateTypingRef.current?.(conversationId, false)
       isTypingRef.current = false
       setIsTyping(false)
     } else {
       console.log('⚪ Already stopped, not sending false')
     }
-  }, [conversationId, updateTyping])
+  }, [conversationId])
 
   // Cleanup on unmount or conversation change
   useEffect(() => {
@@ -135,11 +149,11 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
       }
       // Send false typing indicator on unmount if we were typing
       if (isTypingRef.current) {
-        updateTyping(conversationId, false)
+        updateTypingRef.current?.(conversationId, false)
         isTypingRef.current = false
       }
     }
-  }, [conversationId, updateTyping])
+  }, [conversationId])
 
   const getTypingUsers = useCallback(() => {
     return Array.from(typingUsers.values())

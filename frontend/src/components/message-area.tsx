@@ -168,7 +168,8 @@ export function MessageArea({
     return () => {
       stopTyping()
     }
-  }, [conversation.id, stopTyping])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation.id])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
