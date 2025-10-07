@@ -553,7 +553,6 @@ export function MessageArea({
               value={messageText}
               onChange={handleInputChange}
               onKeyPress={handleKeyPress}
-              onBlur={stopTyping}
               placeholder="Type a message..."
               className="w-full resize-none rounded-xl border border-white/20 bg-white/10 px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-white placeholder-white/50 backdrop-blur-sm transition-all duration-300 focus:scale-[1.01] sm:focus:scale-[1.02] focus:border-blue-400 focus:bg-white/15 focus:shadow-lg focus:outline-none"
               rows={1}

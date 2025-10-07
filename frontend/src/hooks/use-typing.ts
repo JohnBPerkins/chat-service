@@ -95,28 +95,32 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
   }, [conversationId, updateTyping, typingTimeout])
 
   const stopTyping = useCallback(() => {
-    if (isTyping) {
-      updateTyping(conversationId, false)
-      setIsTyping(false)
-    }
-
+    // Always clear timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current)
       typingTimeoutRef.current = undefined
     }
-  }, [conversationId, updateTyping, isTyping])
 
-  // Cleanup on unmount
+    // Only send false if we're currently typing
+    setIsTyping(prev => {
+      if (prev) {
+        updateTyping(conversationId, false)
+      }
+      return false
+    })
+  }, [conversationId, updateTyping])
+
+  // Cleanup on unmount or conversation change
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current)
+        typingTimeoutRef.current = undefined
       }
-      if (isTyping) {
-        updateTyping(conversationId, false)
-      }
+      // Send false typing indicator on unmount
+      updateTyping(conversationId, false)
     }
-  }, [conversationId, updateTyping, isTyping])
+  }, [conversationId, updateTyping])
 
   const getTypingUsers = useCallback(() => {
     return Array.from(typingUsers.values())
