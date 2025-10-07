@@ -182,9 +182,34 @@ export function ConversationSidebar({
           </div>
         ) : (
           <div className="overflow-y-auto p-4 space-y-2">
-            {conversations
-              .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
-              .map((conversation) => (
+            {(() => {
+              console.log('🔍 DEBUG: Raw conversations data:', conversations)
+              console.log('🔍 DEBUG: Conversations with lastMessageAt:', conversations.map(c => ({
+                id: c.id,
+                title: c.title,
+                lastMessageAt: c.lastMessageAt,
+                createdAt: c.createdAt
+              })))
+
+              const sorted = [...conversations].sort((a, b) => {
+                const aTime = new Date(b.lastMessageAt || b.createdAt).getTime()
+                const bTime = new Date(a.lastMessageAt || a.createdAt).getTime()
+                console.log('🔍 DEBUG: Sorting comparison:', {
+                  a: { id: a.id, time: a.lastMessageAt || a.createdAt },
+                  b: { id: b.id, time: b.lastMessageAt || b.createdAt },
+                  result: aTime - bTime
+                })
+                return aTime - bTime
+              })
+
+              console.log('🔍 DEBUG: Sorted conversations:', sorted.map(c => ({
+                id: c.id,
+                title: c.title,
+                lastMessageAt: c.lastMessageAt || c.createdAt
+              })))
+
+              return sorted
+            })().map((conversation) => (
               <button
                 key={conversation.id}
                 onClick={() => onConversationSelect(conversation)}
