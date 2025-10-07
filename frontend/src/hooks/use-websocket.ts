@@ -38,6 +38,9 @@ interface UseWebSocketOptions {
   onError?: (error: ErrorFrame) => void
 }
 
+// Global ref shared across ALL useWebSocket calls to accumulate callbacks
+const globalOptionsRef: { current: UseWebSocketOptions } = { current: {} }
+
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const { data: session } = useSession()
   const [isConnected, setIsConnected] = useState(false)
@@ -45,15 +48,15 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const wsRef = useRef(getChatWebSocket())
   const queryClient = useQueryClient()
 
-  // Store callbacks in refs to avoid stale closures
-  const optionsRef = useRef(options)
-
-  // IMPORTANT: Update ref synchronously on every render BEFORE effect runs
-  optionsRef.current = options
+  // IMPORTANT: Merge new callbacks into the GLOBAL ref (shared across all calls)
+  globalOptionsRef.current = {
+    ...globalOptionsRef.current,
+    ...options,
+  }
 
   console.log('🔄 useWebSocket render, options:', {
     hasOnTypingUpdate: !!options.onTypingUpdate,
-    optionsRefHasIt: !!optionsRef.current.onTypingUpdate
+    globalRefHasIt: !!globalOptionsRef.current.onTypingUpdate
   })
 
   useEffect(() => {
@@ -63,8 +66,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       return
     }
 
-    console.log('🔄 useWebSocket effect running, optionsRef.current:', {
-      hasOnTypingUpdate: !!optionsRef.current.onTypingUpdate
+    console.log('🔄 useWebSocket effect running, globalOptionsRef.current:', {
+      hasOnTypingUpdate: !!globalOptionsRef.current.onTypingUpdate
     })
 
     // Set up event handlers
@@ -100,12 +103,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         queryKey: ['conversations']
       })
 
-      optionsRef.current.onMessageReceived?.(data)
+      globalOptionsRef.current.onMessageReceived?.(data)
     })
 
     ws.on('message.ack', (data: MessageAckFrame) => {
       console.log('Message acknowledged:', data)
-      optionsRef.current.onMessageAck?.(data)
+      globalOptionsRef.current.onMessageAck?.(data)
     })
 
     ws.on('message.edited', (data: MessageEditedFrame) => {
@@ -116,7 +119,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         queryKey: ['messages', data.conversationId]
       })
 
-      optionsRef.current.onMessageEdited?.(data)
+      globalOptionsRef.current.onMessageEdited?.(data)
     })
 
     ws.on('message.deleted', (data: MessageDeletedFrame) => {
@@ -132,20 +135,20 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         queryKey: ['conversations']
       })
 
-      optionsRef.current.onMessageDeleted?.(data)
+      globalOptionsRef.current.onMessageDeleted?.(data)
     })
 
     ws.on('typing.update', (data: TypingUpdateEventFrame) => {
       console.log('Typing update:', data)
-      console.log('🔍 optionsRef.current.onTypingUpdate exists?', !!optionsRef.current.onTypingUpdate)
-      console.log('🔍 optionsRef.current:', optionsRef.current)
-      optionsRef.current.onTypingUpdate?.(data)
+      console.log('🔍 globalOptionsRef.current.onTypingUpdate exists?', !!globalOptionsRef.current.onTypingUpdate)
+      console.log('🔍 globalOptionsRef.current:', globalOptionsRef.current)
+      globalOptionsRef.current.onTypingUpdate?.(data)
       console.log('🔍 Called onTypingUpdate callback')
     })
 
     ws.on('receipt.update', (data: ReceiptUpdateFrame) => {
       console.log('Receipt update:', data)
-      optionsRef.current.onReceiptUpdate?.(data)
+      globalOptionsRef.current.onReceiptUpdate?.(data)
     })
 
     ws.on('participant.update', (data: ParticipantUpdateFrame) => {
@@ -161,7 +164,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         queryKey: ['participants', data.conversationId]
       })
 
-      optionsRef.current.onParticipantUpdate?.(data)
+      globalOptionsRef.current.onParticipantUpdate?.(data)
     })
 
     ws.on('conversation.update', (data: ConversationUpdateFrame) => {
@@ -187,7 +190,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         queryKey: ['conversations']
       })
 
-      optionsRef.current.onConversationUpdate?.(data)
+      globalOptionsRef.current.onConversationUpdate?.(data)
     })
 
     ws.on('friend.request.received', (data: FriendRequestReceivedFrame) => {
@@ -198,7 +201,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         queryKey: ['friend-requests']
       })
 
-      optionsRef.current.onFriendRequestReceived?.(data)
+      globalOptionsRef.current.onFriendRequestReceived?.(data)
     })
 
     ws.on('friend.request.accepted', (data: FriendRequestAcceptedFrame) => {
@@ -215,7 +218,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         queryKey: ['friend-requests']
       })
 
-      optionsRef.current.onFriendRequestAccepted?.(data)
+      globalOptionsRef.current.onFriendRequestAccepted?.(data)
     })
 
     ws.on('friend.request.rejected', (data: FriendRequestRejectedFrame) => {
@@ -226,7 +229,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         queryKey: ['friend-requests']
       })
 
-      optionsRef.current.onFriendRequestRejected?.(data)
+      globalOptionsRef.current.onFriendRequestRejected?.(data)
     })
 
     ws.on('friend.removed', (data: FriendRemovedFrame) => {
@@ -240,7 +243,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         queryKey: ['conversations']
       })
 
-      optionsRef.current.onFriendRemoved?.(data)
+      globalOptionsRef.current.onFriendRemoved?.(data)
     })
 
     ws.on('conversation.added', (data: ConversationAddedFrame) => {
@@ -251,7 +254,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         queryKey: ['conversations']
       })
 
-      optionsRef.current.onConversationAdded?.(data)
+      globalOptionsRef.current.onConversationAdded?.(data)
     })
 
     ws.on('conversation.removed', (data: ConversationRemovedFrame) => {
@@ -267,13 +270,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         queryKey: ['messages', data.conversationId]
       })
 
-      optionsRef.current.onConversationRemoved?.(data)
+      globalOptionsRef.current.onConversationRemoved?.(data)
     })
 
     ws.on('error', (data: ErrorFrame) => {
       console.error('WebSocket error:', data)
       setConnectionError(data.message)
-      optionsRef.current.onError?.(data)
+      globalOptionsRef.current.onError?.(data)
     })
 
     // Connect to WebSocket
