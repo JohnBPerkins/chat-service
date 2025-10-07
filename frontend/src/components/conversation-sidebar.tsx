@@ -8,6 +8,7 @@ import { Users, User as UserIcon, Plus, Settings, LogOut, WifiOff, Wifi, Message
 import { apiClient } from '@/lib/api'
 import { NewConversationModal } from './new-conversation-modal'
 import { FriendsPanel } from './friends-panel'
+import { useAllTyping } from '@/hooks/use-all-typing'
 import type { Conversation } from '@/types/chat'
 
 interface ConversationSidebarProps {
@@ -34,6 +35,7 @@ export function ConversationSidebar({
   const { data: session } = useSession()
   const [isNewConversationOpen, setIsNewConversationOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'chats' | 'friends'>('chats')
+  const { isAnyoneTypingInConversation } = useAllTyping()
 
   const {
     data: conversations,
@@ -222,16 +224,24 @@ export function ConversationSidebar({
                           const result = formatDistanceToNow(new Date(conversation.lastMessageAt), {
                             addSuffix: true,
                           })
-                          return result === 'less than a minute ago' ? 'now' : result
+                          // Handle both past and future cases
+                          if (result === 'less than a minute ago' || result === 'in less than a minute') {
+                            return 'now'
+                          }
+                          return result
                         })()}
                       </span>
                     </div>
 
-                    {conversation.lastMessage && (
+                    {isAnyoneTypingInConversation(conversation.id) ? (
+                      <p className="text-sm text-blue-400 italic truncate">
+                        typing...
+                      </p>
+                    ) : conversation.lastMessage ? (
                       <p className="text-sm text-white/70 truncate">
                         {conversation.lastMessage.body}
                       </p>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </button>
