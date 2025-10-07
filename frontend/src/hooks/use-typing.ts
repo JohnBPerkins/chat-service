@@ -177,10 +177,21 @@ export function useTyping({ conversationId, currentUserId, participants = [], ty
     return `${users[0].name} and ${users.length - 1} others are typing...`
   }, [getTypingUsers])
 
+  const typingText = getTypingText()
+  const isAnyoneTyping = typingUsers.size > 0
+
+  // Debug logging for rendering
+  console.log('🎨 Typing render state:', {
+    typingUsersCount: typingUsers.size,
+    isAnyoneTyping,
+    typingText,
+    typingUsers: Array.from(typingUsers.values())
+  })
+
   return {
     typingUsers: getTypingUsers(),
-    typingText: getTypingText(),
-    isAnyoneTyping: typingUsers.size > 0,
+    typingText,
+    isAnyoneTyping,
     startTyping,
     stopTyping,
     isTyping,

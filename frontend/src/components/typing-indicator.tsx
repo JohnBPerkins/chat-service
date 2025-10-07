@@ -6,10 +6,14 @@ interface TypingIndicatorProps {
 }
 
 export function TypingIndicator({ text, show }: TypingIndicatorProps) {
+  console.log('💬 TypingIndicator render:', { text, show })
+
   if (!show || !text) {
+    console.log('❌ Not showing typing indicator')
     return null
   }
 
+  console.log('✅ Showing typing indicator')
   return (
     <div className="flex gap-3">
       <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center">
