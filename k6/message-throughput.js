@@ -33,8 +33,8 @@ export const options = {
   // Grafana Cloud k6 integration
   ext: {
     loadimpact: {
-      projectID: parseInt(__ENV.K6_CLOUD_PROJECT_ID || '0'),
       name: 'Chat Service - Message Throughput Test',
+      // projectID is optional - k6 cloud will use your default project if not specified
     },
   },
 };
