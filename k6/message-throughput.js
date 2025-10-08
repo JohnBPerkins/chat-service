@@ -1,6 +1,6 @@
 import ws from 'k6/ws';
 import { check, sleep } from 'k6';
-import { Counter, Rate, Trend, Gauge } from 'k6/metrics';
+import { Counter, Rate, Trend } from 'k6/metrics';
 import { randomString } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 
 // Custom metrics
@@ -9,7 +9,6 @@ const messagesAcked = new Counter('messages_acked');
 const messagesFailed = new Counter('messages_failed');
 const messageLatency = new Trend('message_latency');
 const ackRate = new Rate('ack_rate');
-const actualMessagesPerSecond = new Gauge('actual_messages_per_second');
 
 // Configuration
 const BASE_URL = __ENV.BASE_URL || 'wss://chatservicews.up.railway.app';
