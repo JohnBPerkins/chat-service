@@ -46,6 +46,7 @@ coverage.txt
 .env.production.local
 .env.example
 .env.production
+k6/.env.k6
 
 # Logs
 logs
