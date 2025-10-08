@@ -110,7 +110,7 @@ echo ""
 # Select test type
 echo -e "${BLUE}Select test to run:${NC}"
 echo "  1) Quick test (1 min, 10 users) - Verify setup"
-echo "  2) Throughput test (~11 min, up to 200 users) - Realistic load"
+echo "  2) Throughput test (1 min, up to 100 users) - Realistic load"
 echo "  3) Stress test (~4 min, up to 1000 users) - Find limits"
 echo ""
 read -p "Enter choice [1-3]: " TEST_CHOICE

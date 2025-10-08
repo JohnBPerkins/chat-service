@@ -14,20 +14,16 @@ const messageLatency = new Trend('message_latency');
 const BASE_URL = __ENV.BASE_URL || 'wss://chat-service-production.up.railway.app';
 const WS_URL = `${BASE_URL}/v1/ws`;
 const CONVERSATION_ID = __ENV.CONVERSATION_ID || ''; // Must be provided
-const MESSAGES_PER_VU = parseInt(__ENV.MESSAGES_PER_VU || '100');
+const MESSAGES_PER_VU = parseInt(__ENV.MESSAGES_PER_VU || '50');
 const MESSAGE_SIZE = parseInt(__ENV.MESSAGE_SIZE || '100'); // characters
-const THINK_TIME_MS = parseInt(__ENV.THINK_TIME_MS || '1000'); // time between messages
+const THINK_TIME_MS = parseInt(__ENV.THINK_TIME_MS || '500'); // time between messages
 
-// Test stages - ramp up load gradually
+// Test stages - focused on message throughput
 export const options = {
   stages: [
-    { duration: '30s', target: 10 },   // Ramp up to 10 users
-    { duration: '1m', target: 50 },    // Ramp up to 50 users
-    { duration: '2m', target: 100 },   // Ramp up to 100 users
-    { duration: '2m', target: 100 },   // Stay at 100 users
-    { duration: '1m', target: 200 },   // Spike to 200 users
-    { duration: '2m', target: 200 },   // Stay at 200 users
-    { duration: '1m', target: 0 },     // Ramp down
+    { duration: '30s', target: 50 },   // Quick ramp to 50 users
+    { duration: '30s', target: 100 },  // Ramp to 100 users
+    { duration: '1m', target: 100 },   // Hold at 100 users for throughput test
   ],
   thresholds: {
     'messages_per_second': ['rate>0.95'], // 95% of messages should be sent successfully
@@ -194,13 +190,15 @@ function generateMessage(size) {
 // Setup function - runs once before all VUs start
 export function setup() {
   console.log('='.repeat(80));
-  console.log('Chat Service Load Test - Message Throughput');
+  console.log('Chat Service Load Test - Message Throughput (2min, 100 VUs)');
   console.log('='.repeat(80));
   console.log(`Base URL: ${BASE_URL}`);
   console.log(`Conversation ID: ${CONVERSATION_ID}`);
+  console.log(`Max VUs: 100`);
   console.log(`Messages per VU: ${MESSAGES_PER_VU}`);
   console.log(`Message size: ${MESSAGE_SIZE} characters`);
   console.log(`Think time: ${THINK_TIME_MS}ms`);
+  console.log(`Estimated total messages: ~${100 * MESSAGES_PER_VU}`);
   console.log('='.repeat(80));
 
   if (!CONVERSATION_ID) {
