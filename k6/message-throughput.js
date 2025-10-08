@@ -105,7 +105,6 @@ export function listener(data) {
         // Count message.new broadcasts
         if (frame.type === 'message.new' && frame.data) {
           const clientMsgId = frame.data.clientMsgId;
-          const sendTime = frame.data.sendTime || frame.ts; // Use sendTime if available
 
           if (!receivedMessages.has(clientMsgId)) {
             receivedMessages.set(clientMsgId, Date.now());
