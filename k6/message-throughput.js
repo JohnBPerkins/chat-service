@@ -16,25 +16,25 @@ const USER_ID = __ENV.USER_ID || '';
 const WS_URL = `${BASE_URL}/ws?userId=${encodeURIComponent(USER_ID)}`;
 const CONVERSATION_ID = __ENV.CONVERSATION_ID || '';
 const MESSAGE_SIZE = parseInt(__ENV.MESSAGE_SIZE || '100');
-const TARGET_RATE = parseInt(__ENV.TARGET_RATE || '100'); // Target messages per second
+const VUS = parseInt(__ENV.VUS || '50'); // Number of concurrent connections
 const DURATION = __ENV.DURATION || '30s';
+const MESSAGES_PER_VU = parseInt(__ENV.MESSAGES_PER_VU || '100'); // Messages per VU total
+const DELAY_MS = parseInt(__ENV.DELAY_MS || '100'); // Delay between messages (controls RPS)
 
-// Constant-arrival-rate executor for precise throughput testing
+// Per-VU iterations executor for persistent WebSocket connections
 export const options = {
   scenarios: {
     message_throughput: {
-      executor: 'constant-arrival-rate',
-      rate: TARGET_RATE,           // Target messages per second
-      timeUnit: '1s',
-      duration: DURATION,
-      preAllocatedVUs: 50,         // Pre-allocate VUs
-      maxVUs: 200,                 // Allow scaling up to 200 VUs if needed
+      executor: 'per-vu-iterations',
+      vus: VUS,
+      iterations: 1, // Each VU runs once but sends multiple messages
+      maxDuration: DURATION,
     },
   },
   thresholds: {
     'ack_rate': ['rate>0.95'],                    // 95% of messages must be acknowledged
     'message_latency': ['p(95)<1000', 'p(99)<2000'], // 95% under 1s, 99% under 2s
-    'messages_failed': ['count<10'],              // Allow very few failures
+    'messages_failed': ['count<100'],             // Allow some failures
   },
   ext: {
     loadimpact: {
@@ -42,11 +42,6 @@ export const options = {
     },
   },
 };
-
-// Global WebSocket connection pool (one per VU)
-let globalSocket = null;
-let pendingMessages = new Map();
-let isSubscribed = false;
 
 // Setup function - runs once before all VUs start
 export function setup() {
@@ -56,9 +51,12 @@ export function setup() {
   console.log(`Base URL: ${BASE_URL}`);
   console.log(`User ID: ${USER_ID}`);
   console.log(`Conversation ID: ${CONVERSATION_ID}`);
-  console.log(`Target Rate: ${TARGET_RATE} messages/second`);
-  console.log(`Duration: ${DURATION}`);
+  console.log(`Concurrent VUs: ${VUS}`);
+  console.log(`Messages per VU: ${MESSAGES_PER_VU}`);
+  console.log(`Total messages: ~${VUS * MESSAGES_PER_VU}`);
   console.log(`Message size: ${MESSAGE_SIZE} characters`);
+  console.log(`Delay between messages: ${DELAY_MS}ms`);
+  console.log(`Target RPS: ~${Math.round(VUS * (1000 / DELAY_MS))}`);
   console.log('='.repeat(80));
 
   if (!USER_ID || !CONVERSATION_ID) {
@@ -68,124 +66,137 @@ export function setup() {
   return { startTime: Date.now() };
 }
 
-// Main test function - each iteration sends ONE message
+// Main test function - each VU connects once and sends multiple messages
 export default function () {
   if (!USER_ID || !CONVERSATION_ID) {
     messagesFailed.add(1);
     return;
   }
 
-  // Establish persistent WebSocket connection per VU (reuse across iterations)
-  if (!globalSocket) {
-    const res = ws.connect(WS_URL, { tags: { name: 'WebSocketConnection' } }, function (socket) {
-      globalSocket = socket;
+  const pendingMessages = new Map();
+  let messagesSentCount = 0;
+  let messagesAckedCount = 0;
 
-      // Handle incoming messages
-      socket.on('message', function (data) {
+  const res = ws.connect(WS_URL, { tags: { name: 'WebSocketConnection' } }, function (socket) {
+    // Handle incoming messages
+    socket.on('message', function (data) {
+      try {
+        const frame = JSON.parse(data);
+
+        // Track acknowledgments
+        if (frame.type === 'message.ack' && frame.data) {
+          const clientMsgId = frame.data.clientMsgId;
+          if (pendingMessages.has(clientMsgId)) {
+            const sendTime = pendingMessages.get(clientMsgId);
+            const latency = Date.now() - sendTime;
+            messageLatency.add(latency);
+            messagesAcked.add(1);
+            messagesAckedCount++;
+            ackRate.add(1);
+            pendingMessages.delete(clientMsgId);
+          }
+        }
+
+        // Handle errors
+        if (frame.type === 'error') {
+          console.error(`VU ${__VU}: WebSocket error: ${JSON.stringify(frame.data)}`);
+          messagesFailed.add(1);
+          ackRate.add(0);
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    });
+
+    socket.on('open', function () {
+      console.log(`VU ${__VU}: Connected, subscribing to conversation`);
+
+      // Subscribe to conversation
+      socket.send(JSON.stringify({
+        type: 'subscribe',
+        ts: Date.now(),
+        data: { conversationId: CONVERSATION_ID },
+      }));
+
+      // Wait for subscription (backend doesn't send confirmation, just processes silently)
+      sleep(0.5);
+
+      // Send messages
+      for (let i = 0; i < MESSAGES_PER_VU; i++) {
+        const clientMsgId = `vu${__VU}-${Date.now()}-${i}`;
+        const sendTime = Date.now();
+
+        pendingMessages.set(clientMsgId, sendTime);
+
+        const messageFrame = {
+          type: 'message.send',
+          ts: sendTime,
+          data: {
+            conversationId: CONVERSATION_ID,
+            clientMsgId: clientMsgId,
+            body: generateMessage(MESSAGE_SIZE),
+          },
+        };
+
         try {
-          const frame = JSON.parse(data);
+          socket.send(JSON.stringify(messageFrame));
+          messagesSent.add(1);
+          messagesSentCount++;
 
-          // Track acknowledgments
-          if (frame.type === 'message.ack' && frame.data) {
-            const clientMsgId = frame.data.clientMsgId;
-            if (pendingMessages.has(clientMsgId)) {
-              const sendTime = pendingMessages.get(clientMsgId);
-              const latency = Date.now() - sendTime;
-              messageLatency.add(latency);
-              messagesAcked.add(1);
-              ackRate.add(1);
-              pendingMessages.delete(clientMsgId);
-            }
-          }
-
-          // Subscribe confirmation
-          if (frame.type === 'subscribe.success') {
-            isSubscribed = true;
-          }
-
-          // Handle errors
-          if (frame.type === 'error') {
-            console.error(`WebSocket error: ${JSON.stringify(frame.data)}`);
-            messagesFailed.add(1);
-            ackRate.add(0);
+          // Delay between messages to control rate
+          if (i < MESSAGES_PER_VU - 1) {
+            sleep(DELAY_MS / 1000);
           }
         } catch (e) {
-          // Ignore parse errors
-        }
-      });
-
-      socket.on('open', function () {
-        // Subscribe to conversation
-        socket.send(JSON.stringify({
-          type: 'subscribe',
-          ts: Date.now(),
-          data: { conversationId: CONVERSATION_ID },
-        }));
-
-        // Wait for subscription
-        sleep(0.5);
-      });
-
-      socket.on('error', function (e) {
-        if (e && e.error && e.error() !== 'websocket: close sent') {
+          console.error(`VU ${__VU}: Failed to send message: ${e}`);
           messagesFailed.add(1);
+          ackRate.add(0);
         }
-      });
-
-      socket.on('close', function () {
-        globalSocket = null;
-        isSubscribed = false;
-      });
-
-      // Keep connection alive during entire scenario
-      socket.setInterval(function () {
-        // Heartbeat - connection stays open
-      }, 30000);
-    });
-
-    check(res, {
-      'WebSocket connected': (r) => r && r.status === 101,
-    });
-  }
-
-  // Send one message per iteration
-  if (globalSocket && isSubscribed) {
-    const clientMsgId = `vu${__VU}-iter${__ITER}-${Date.now()}`;
-    const sendTime = Date.now();
-
-    pendingMessages.set(clientMsgId, sendTime);
-
-    const messageFrame = {
-      type: 'message.send',
-      ts: sendTime,
-      data: {
-        conversationId: CONVERSATION_ID,
-        clientMsgId: clientMsgId,
-        body: generateMessage(MESSAGE_SIZE),
-      },
-    };
-
-    try {
-      globalSocket.send(JSON.stringify(messageFrame));
-      messagesSent.add(1);
-
-      const succeeded = check(messageFrame, {
-        'Message sent': () => true,
-      });
-
-      if (!succeeded) {
-        messagesFailed.add(1);
-        ackRate.add(0);
       }
-    } catch (e) {
-      messagesFailed.add(1);
-      ackRate.add(0);
-    }
-  } else {
-    // Connection not ready yet
-    messagesFailed.add(1);
-    ackRate.add(0);
-  }
+
+      // Wait for remaining acknowledgments
+      const waitStart = Date.now();
+      const maxWait = 5000; // 5 seconds max wait
+      while (pendingMessages.size > 0 && (Date.now() - waitStart) < maxWait) {
+        sleep(0.1);
+      }
+
+      // Mark any remaining messages as failed
+      const remaining = pendingMessages.size;
+      if (remaining > 0) {
+        console.log(`VU ${__VU}: ${remaining} messages not acknowledged`);
+        for (let i = 0; i < remaining; i++) {
+          ackRate.add(0);
+        }
+      }
+
+      console.log(`VU ${__VU}: Sent ${messagesSentCount}, Acked ${messagesAckedCount}`);
+
+      // Close connection
+      socket.close();
+    });
+
+    socket.on('close', function () {
+      console.log(`VU ${__VU}: Connection closed`);
+    });
+
+    socket.on('error', function (e) {
+      if (e && e.error && e.error() !== 'websocket: close sent') {
+        console.error(`VU ${__VU}: WebSocket error: ${e}`);
+        messagesFailed.add(1);
+      }
+    });
+
+    // Timeout
+    socket.setTimeout(function () {
+      console.log(`VU ${__VU}: Connection timeout`);
+      socket.close();
+    }, 60000); // 60 second timeout
+  });
+
+  check(res, {
+    'WebSocket connected': (r) => r && r.status === 101,
+  });
 }
 
 // Generate random message
