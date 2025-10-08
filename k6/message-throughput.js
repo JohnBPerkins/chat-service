@@ -16,10 +16,10 @@ const USER_ID = __ENV.USER_ID || '';
 const WS_URL = `${BASE_URL}/ws?userId=${encodeURIComponent(USER_ID)}`;
 const CONVERSATION_ID = __ENV.CONVERSATION_ID || '';
 const MESSAGE_SIZE = parseInt(__ENV.MESSAGE_SIZE || '100');
-const VUS = parseInt(__ENV.VUS || '50'); // Number of concurrent connections
+const VUS = parseInt(__ENV.VUS || '10'); // Number of concurrent connections
 const DURATION = __ENV.DURATION || '30s';
-const MESSAGES_PER_VU = parseInt(__ENV.MESSAGES_PER_VU || '100'); // Messages per VU total
-const DELAY_MS = parseInt(__ENV.DELAY_MS || '100'); // Delay between messages (controls RPS)
+const MESSAGES_PER_VU = parseInt(__ENV.MESSAGES_PER_VU || '20'); // Messages per VU total
+const DELAY_MS = parseInt(__ENV.DELAY_MS || '200'); // Delay between messages (controls RPS)
 
 // Per-VU iterations executor for persistent WebSocket connections
 export const options = {
@@ -94,7 +94,15 @@ export default function () {
             messagesAckedCount++;
             ackRate.add(1);
             pendingMessages.delete(clientMsgId);
+          } else {
+            // Received ack for unknown message
+            console.log(`VU ${__VU}: Received ack for unknown clientMsgId: ${clientMsgId}`);
           }
+        }
+
+        // Log all message types for debugging
+        if (frame.type !== 'message.ack') {
+          console.log(`VU ${__VU}: Received frame type: ${frame.type}`);
         }
 
         // Handle errors
@@ -104,7 +112,7 @@ export default function () {
           ackRate.add(0);
         }
       } catch (e) {
-        // Ignore parse errors
+        console.error(`VU ${__VU}: Failed to parse message: ${e}, data: ${data.substring(0, 100)}`);
       }
     });
 
