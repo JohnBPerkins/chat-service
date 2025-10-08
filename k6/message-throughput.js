@@ -11,8 +11,9 @@ const connectionErrors = new Counter('connection_errors');
 const messageLatency = new Trend('message_latency');
 
 // Configuration - can be overridden via environment variables
-const BASE_URL = __ENV.BASE_URL || 'wss://chat-service-production.up.railway.app';
-const WS_URL = `${BASE_URL}/v1/ws`;
+const BASE_URL = __ENV.BASE_URL || 'wss://chatservicews.up.railway.app';
+const USER_ID = __ENV.USER_ID || ''; // User email address
+const WS_URL = `${BASE_URL}/ws?userId=${encodeURIComponent(USER_ID)}`;
 const CONVERSATION_ID = __ENV.CONVERSATION_ID || ''; // Must be provided
 const MESSAGES_PER_VU = parseInt(__ENV.MESSAGES_PER_VU || '50');
 const MESSAGE_SIZE = parseInt(__ENV.MESSAGE_SIZE || '100'); // characters
@@ -41,11 +42,8 @@ export const options = {
 
 // Main test function - runs for each virtual user
 export default function () {
-  // Get JWT token from environment (see setup-tokens.js)
-  const jwt = __ENV[`JWT_${__VU}`] || __ENV.JWT_TOKEN;
-
-  if (!jwt) {
-    console.error(`No JWT token found for VU ${__VU}. Set JWT_${__VU} or JWT_TOKEN environment variable.`);
+  if (!USER_ID) {
+    console.error(`USER_ID must be set (your email address)`);
     connectionErrors.add(1);
     return;
   }
@@ -59,11 +57,8 @@ export default function () {
   // Track pending messages for latency measurement
   const pendingMessages = new Map();
 
-  // WebSocket connection with authentication
+  // WebSocket connection (userId is in query parameter)
   const params = {
-    headers: {
-      'Authorization': `Bearer ${jwt}`,
-    },
     tags: {
       name: 'WebSocketConnection',
       vu: __VU,
@@ -193,6 +188,7 @@ export function setup() {
   console.log('Chat Service Load Test - Message Throughput (2min, 100 VUs)');
   console.log('='.repeat(80));
   console.log(`Base URL: ${BASE_URL}`);
+  console.log(`User ID: ${USER_ID}`);
   console.log(`Conversation ID: ${CONVERSATION_ID}`);
   console.log(`Max VUs: 100`);
   console.log(`Messages per VU: ${MESSAGES_PER_VU}`);
@@ -201,8 +197,12 @@ export function setup() {
   console.log(`Estimated total messages: ~${100 * MESSAGES_PER_VU}`);
   console.log('='.repeat(80));
 
+  if (!USER_ID) {
+    throw new Error('USER_ID must be set. Use: k6 run -e USER_ID=your@email.com -e CONVERSATION_ID=xxx message-throughput.js');
+  }
+
   if (!CONVERSATION_ID) {
-    throw new Error('CONVERSATION_ID must be set. Use: k6 run -e CONVERSATION_ID=xxx message-throughput.js');
+    throw new Error('CONVERSATION_ID must be set. Use: k6 run -e USER_ID=your@email.com -e CONVERSATION_ID=xxx message-throughput.js');
   }
 
   return {

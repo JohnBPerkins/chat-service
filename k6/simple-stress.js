@@ -20,19 +20,18 @@ export const options = {
   },
 };
 
-const BASE_URL = __ENV.BASE_URL || 'wss://chat-service-production.up.railway.app';
-const WS_URL = `${BASE_URL}/v1/ws`;
+const BASE_URL = __ENV.BASE_URL || 'wss://chatservicews.up.railway.app';
+const USER_ID = __ENV.USER_ID || '';
+const WS_URL = `${BASE_URL}/ws?userId=${encodeURIComponent(USER_ID)}`;
 const CONVERSATION_ID = __ENV.CONVERSATION_ID || '';
 
 export default function () {
-  const jwt = __ENV[`JWT_${__VU}`] || __ENV.JWT_TOKEN;
-
-  if (!jwt || !CONVERSATION_ID) {
+  if (!USER_ID || !CONVERSATION_ID) {
     return;
   }
 
   const params = {
-    headers: { 'Authorization': `Bearer ${jwt}` },
+    // No auth headers needed - userId is in query parameter
   };
 
   ws.connect(WS_URL, params, function (socket) {
