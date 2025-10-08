@@ -48,6 +48,9 @@ type Client struct {
 	Hub            *WebSocketHub
 	subscriptions  map[string]bool
 	subscriptionsMu sync.RWMutex
+	closeOnce      sync.Once  // Ensures channel is only closed once
+	closed         bool       // Tracks if channel is closed
+	closedMu       sync.RWMutex
 }
 
 type ConversationSubscription struct {
@@ -86,7 +89,7 @@ func (h *WebSocketHub) HandleWebSocket(w http.ResponseWriter, r *http.Request, u
 		ID:            clientID,
 		UserID:        userID,
 		Conn:          conn,
-		Send:          make(chan *models.WSFrame, 1024),
+		Send:          make(chan *models.WSFrame, 10000), // Increased from 1024 to 10000
 		Hub:           h,
 		subscriptions: make(map[string]bool),
 	}
@@ -346,6 +349,14 @@ func (c *Client) handleFrame(frame *models.WSFrame) {
 }
 
 func (c *Client) sendFrame(frameType string, data interface{}) {
+	// Check if channel is closed
+	c.closedMu.RLock()
+	if c.closed {
+		c.closedMu.RUnlock()
+		return
+	}
+	c.closedMu.RUnlock()
+
 	frame := &models.WSFrame{
 		Type: frameType,
 		TS:   time.Now().UnixMilli(),
@@ -354,10 +365,22 @@ func (c *Client) sendFrame(frameType string, data interface{}) {
 
 	select {
 	case c.Send <- frame:
+		// Message sent successfully
 	default:
+		// Buffer full - close connection safely
 		log.Printf("WebSocket client %s send buffer full, closing connection", c.ID)
-		close(c.Send)
+		c.safeClose()
 	}
+}
+
+// safeClose ensures the Send channel is only closed once
+func (c *Client) safeClose() {
+	c.closeOnce.Do(func() {
+		c.closedMu.Lock()
+		c.closed = true
+		c.closedMu.Unlock()
+		close(c.Send)
+	})
 }
 
 func (c *Client) sendError(code, message string) {
@@ -388,7 +411,8 @@ func (h *WebSocketHub) unregisterClient(client *Client) {
 		h.unsubscribeClient(client, convID)
 	}
 
-	close(client.Send)
+	// Use safe close to prevent double-close panic
+	client.safeClose()
 }
 
 func (h *WebSocketHub) subscribeClient(client *Client, conversationID string) {

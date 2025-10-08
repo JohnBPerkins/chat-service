@@ -159,8 +159,10 @@ export default function () {
     });
 
     socket.on('error', function (e) {
-      console.error(`VU ${__VU}: WebSocket error: ${e}`);
-      connectionErrors.add(1);
+      if (e && e.error && e.error() !== 'websocket: close sent') {
+        console.error(`VU ${__VU}: WebSocket error: ${e}`);
+        connectionErrors.add(1);
+      }
     });
 
     // Timeout - close connection after 5 minutes
