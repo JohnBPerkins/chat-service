@@ -15,9 +15,9 @@ const BASE_URL = __ENV.BASE_URL || 'wss://chatservicews.up.railway.app';
 const USER_ID = __ENV.USER_ID || '';
 const CONVERSATION_ID = __ENV.CONVERSATION_ID || '';
 const MESSAGE_SIZE = parseInt(__ENV.MESSAGE_SIZE || '100');
-const SENDER_VUS = parseInt(__ENV.SENDER_VUS || '10');
-const MESSAGES_PER_VU = parseInt(__ENV.MESSAGES_PER_VU || '50');
-const DELAY_MS = parseInt(__ENV.DELAY_MS || '100');
+const SENDER_VUS = parseInt(__ENV.SENDER_VUS || '20');
+const MESSAGES_PER_VU = parseInt(__ENV.MESSAGES_PER_VU || '100');
+const DELAY_MS = parseInt(__ENV.DELAY_MS || '50'); // 50ms = 20 msg/sec per VU (default: 20×20=400 RPS)
 
 // Per-VU iterations executor
 export const options = {
@@ -148,6 +148,16 @@ export function listener(data) {
     // Keep connection open for the entire test
     socket.setTimeout(function () {
       console.log(`LISTENER: Timeout. Received ${receivedCount}/${data.expectedMessages} messages`);
+
+      // Calculate delivery rate: for each expected message, mark as delivered (1) or not (0)
+      for (let i = 0; i < data.expectedMessages; i++) {
+        if (i < receivedCount) {
+          deliveryRate.add(1); // Delivered
+        } else {
+          deliveryRate.add(0); // Not delivered
+        }
+      }
+
       socket.close();
     }, 120000); // 2 minute timeout
   });
@@ -166,6 +176,9 @@ export function sender() {
 
   const senderUrl = `${BASE_URL}/ws?userId=${encodeURIComponent(USER_ID)}-sender-${__VU}`;
   let messagesSentCount = 0;
+
+  // Pre-generate message body once to avoid blocking randomString calls
+  const messageBody = `Load test msg: ${randomString(MESSAGE_SIZE - 20)}`;
 
   const res = ws.connect(senderUrl, { tags: { name: 'Sender' } }, function (socket) {
     socket.on('open', function () {
@@ -190,15 +203,14 @@ export function sender() {
           data: {
             conversationId: CONVERSATION_ID,
             clientMsgId: clientMsgId,
-            body: `Load test msg: ${randomString(MESSAGE_SIZE - 20)}`,
-            sendTime: sendTime, // Include sendTime for latency tracking
+            body: messageBody, // Use pre-generated body
+            sendTime: sendTime,
           },
         };
 
         try {
           socket.send(JSON.stringify(messageFrame));
           messagesSent.add(1);
-          deliveryRate.add(1); // Assume sent = will be delivered, receiver will track actual
           messagesSentCount++;
 
           if (i < MESSAGES_PER_VU - 1) {
