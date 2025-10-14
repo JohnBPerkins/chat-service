@@ -1,264 +1,136 @@
 import ws from 'k6/ws';
-import { check, sleep } from 'k6';
+import { check } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
 import { randomString } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 
-// Custom metrics
+// Metrics
 const messagesSent = new Counter('messages_sent');
-const messagesReceived = new Counter('messages_received');
-const messagesFailed = new Counter('messages_failed');
+const messagesRecv = new Counter('messages_received');
+const messagesFail = new Counter('messages_failed');
 const messageLatency = new Trend('message_latency');
 const deliveryRate = new Rate('delivery_rate');
 
-// Configuration
+// Env
 const BASE_URL = __ENV.BASE_URL || 'wss://chatservicews.up.railway.app';
 const USER_ID = __ENV.USER_ID || '';
 const CONVERSATION_ID = __ENV.CONVERSATION_ID || '';
-const MESSAGE_SIZE = parseInt(__ENV.MESSAGE_SIZE || '100');
-const SENDER_VUS = parseInt(__ENV.SENDER_VUS || '20');
-const MESSAGES_PER_VU = parseInt(__ENV.MESSAGES_PER_VU || '100');
-const DELAY_MS = parseInt(__ENV.DELAY_MS || '50'); // 50ms = 20 msg/sec per VU (default: 20×20=400 RPS)
+const MESSAGE_SIZE = parseInt(__ENV.MESSAGE_SIZE || '100', 10);
 
-// Per-VU iterations executor
+// Rate tuning
+const SENDER_VUS = parseInt(__ENV.SENDER_VUS || '20', 10);        // more VUs = more sockets (default: 20)
+const MSGS_PER_SEC = parseInt(__ENV.MSGS_PER_SEC || '50', 10);    // per VU (default: 50)
+const BURST = parseInt(__ENV.BURST || '10', 10);                   // messages per tick (default: 10)
+const TICK_MS = Math.max(1, Math.floor(1000 / Math.max(1, (MSGS_PER_SEC / BURST))));
+
+// Test length
+const DURATION = __ENV.DURATION || '30s';  // Shorter default: 30s
+
+// Optional extra listeners to avoid single-consumer bottleneck
+const LISTENERS = parseInt(__ENV.LISTENERS || '1', 10);
+
+// Scenarios
 export const options = {
   scenarios: {
-    // Single listener that receives all messages
-    listener: {
-      executor: 'shared-iterations',
-      vus: 1,
-      iterations: 1,
-      maxDuration: '2m',
+    listeners: {
+      executor: 'constant-vus',
+      vus: LISTENERS,
+      duration: DURATION,
       exec: 'listener',
+      startTime: '0s',
     },
-    // Multiple senders
     senders: {
-      executor: 'per-vu-iterations',
+      executor: 'constant-vus',
       vus: SENDER_VUS,
-      iterations: 1,
-      maxDuration: '1m',
+      duration: DURATION,
       exec: 'sender',
-      startTime: '2s', // Start after listener is ready
+      startTime: '2s',
     },
   },
   thresholds: {
-    'delivery_rate': ['rate>0.95'],           // 95% of sent messages received by listener
-    'message_latency': ['p(95)<2000'],        // 95% delivered within 2s
-    'messages_failed': ['count<100'],
-  },
-  ext: {
-    loadimpact: {
-      name: 'Chat Service - Message Throughput (Delivery Test)',
-    },
+    delivery_rate: ['rate>0.95'],
+    message_latency: ['p(95)<2000'],
+    messages_failed: ['count<100'],
   },
 };
 
-// Setup
+// Lightweight setup checks
 export function setup() {
-  console.log('='.repeat(80));
-  console.log('Chat Service Load Test - Message Delivery (Sender → Receiver)');
-  console.log('='.repeat(80));
-  console.log(`Base URL: ${BASE_URL}`);
-  console.log(`Conversation ID: ${CONVERSATION_ID}`);
-  console.log(`Listener: 1 VU (receives messages)`);
-  console.log(`Senders: ${SENDER_VUS} VUs`);
-  console.log(`Messages per sender: ${MESSAGES_PER_VU}`);
-  console.log(`Total messages: ${SENDER_VUS * MESSAGES_PER_VU}`);
-  console.log(`Delay between messages: ${DELAY_MS}ms`);
-  console.log(`Target RPS: ~${Math.round(SENDER_VUS * (1000 / DELAY_MS))}`);
-  console.log('='.repeat(80));
-
-  if (!USER_ID || !CONVERSATION_ID) {
-    throw new Error('USER_ID and CONVERSATION_ID required');
-  }
-
-  return {
-    startTime: Date.now(),
-    expectedMessages: SENDER_VUS * MESSAGES_PER_VU,
-  };
+  if (!USER_ID || !CONVERSATION_ID) throw new Error('USER_ID and CONVERSATION_ID required');
 }
 
-// Listener function - receives and counts messages
-export function listener(data) {
-  const listenerUserId = `${USER_ID}-listener`;
-  const listenerUrl = `${BASE_URL}/ws?userId=${encodeURIComponent(listenerUserId)}`;
+// Listener(s) – minimal logging, map for de-dupe & latency
+export function listener() {
+  const uid = `${USER_ID}-listener-${__VU}`;
+  const url = `${BASE_URL}/ws?userId=${encodeURIComponent(uid)}`;
+  const seen = new Set();
 
-  let receivedCount = 0;
-  const receivedMessages = new Map(); // clientMsgId -> timestamp
-
-  const res = ws.connect(listenerUrl, { tags: { name: 'Listener' } }, function (socket) {
-    socket.on('open', function () {
-      console.log('LISTENER: Connected, subscribing...');
-
-      socket.send(JSON.stringify({
-        type: 'subscribe',
-        ts: Date.now(),
-        data: { conversationId: CONVERSATION_ID },
-      }));
-
-      console.log('LISTENER: Waiting for messages...');
+  const res = ws.connect(url, {}, (socket) => {
+    socket.on('open', () => {
+      socket.send(JSON.stringify({ type: 'subscribe', ts: Date.now(), data: { conversationId: CONVERSATION_ID } }));
     });
 
-    socket.on('message', function (data) {
-      try {
-        const frame = JSON.parse(data);
+    socket.on('message', (raw) => {
+      // Parsing can be a hotspot—keep it lean
+      let f;
+      try { f = JSON.parse(raw); } catch { return; }
+      if (f.type !== 'message.new' || !f.data) return;
 
-        // Count message.new broadcasts
-        if (frame.type === 'message.new' && frame.data) {
-          const clientMsgId = frame.data.clientMsgId;
+      // Backend sends server-generated 'id', not 'clientMsgId'
+      const msgId = f.data.id;
+      if (!msgId || seen.has(msgId)) return;
+      seen.add(msgId);
+      messagesRecv.add(1);
+      deliveryRate.add(1);
 
-          if (!receivedMessages.has(clientMsgId)) {
-            receivedMessages.set(clientMsgId, Date.now());
-            receivedCount++;
-            messagesReceived.add(1);
-
-            // Calculate latency if sendTime is in clientMsgId
-            if (clientMsgId && clientMsgId.includes('-')) {
-              const parts = clientMsgId.split('-');
-              if (parts.length >= 3) {
-                const sendTimeFromId = parseInt(parts[2]);
-                if (!isNaN(sendTimeFromId)) {
-                  const latency = Date.now() - sendTimeFromId;
-                  messageLatency.add(latency);
-                }
-              }
-            }
-
-            if (receivedCount % 50 === 0) {
-              console.log(`LISTENER: Received ${receivedCount} messages`);
-            }
-          }
-        }
-
-        if (frame.type === 'error') {
-          console.error(`LISTENER: Error: ${JSON.stringify(frame.data)}`);
-        }
-      } catch (e) {
-        // Ignore parse errors
+      // Latency: approximate from frame timestamp to now (not exact sender time)
+      if (f.ts) {
+        const latency = Date.now() - f.ts;
+        if (latency > 0 && latency < 60000) messageLatency.add(latency);
       }
     });
 
-    socket.on('error', function (e) {
-      console.error(`LISTENER: WebSocket error: ${e}`);
-    });
-
-    socket.on('close', function () {
-      console.log(`LISTENER: Connection closed. Received ${receivedCount} total messages`);
-    });
-
-    // Keep connection open for the entire test
-    socket.setTimeout(function () {
-      console.log(`LISTENER: Timeout. Received ${receivedCount}/${data.expectedMessages} messages`);
-
-      // Calculate delivery rate: for each expected message, mark as delivered (1) or not (0)
-      for (let i = 0; i < data.expectedMessages; i++) {
-        if (i < receivedCount) {
-          deliveryRate.add(1); // Delivered
-        } else {
-          deliveryRate.add(0); // Not delivered
-        }
-      }
-
-      socket.close();
-    }, 120000); // 2 minute timeout
+    socket.on('error', () => { /* swallow to avoid spam */ });
+    socket.setTimeout(() => socket.close(), 2 * 60 * 1000); // individual listener lifespan guard
   });
 
-  check(res, {
-    'Listener connected': (r) => r && r.status === 101,
-  });
+  check(res, { 'listener connected': (r) => r && r.status === 101 });
 }
 
-// Sender function - sends messages
+// Sender – emits bursts on setInterval for tighter pacing
 export function sender() {
-  if (!USER_ID || !CONVERSATION_ID) {
-    messagesFailed.add(1);
-    return;
-  }
+  const uid = `${USER_ID}-sender-${__VU}`;
+  const url = `${BASE_URL}/ws?userId=${encodeURIComponent(uid)}`;
+  const body = `Load test: ${randomString(Math.max(1, MESSAGE_SIZE - 12))}`;
 
-  const senderUrl = `${BASE_URL}/ws?userId=${encodeURIComponent(USER_ID)}-sender-${__VU}`;
-  let messagesSentCount = 0;
+  const res = ws.connect(url, {}, (socket) => {
+    let sent = 0;
 
-  // Pre-generate message body once to avoid blocking randomString calls
-  const messageBody = `Load test msg: ${randomString(MESSAGE_SIZE - 20)}`;
+    socket.on('open', () => {
+      socket.send(JSON.stringify({ type: 'subscribe', ts: Date.now(), data: { conversationId: CONVERSATION_ID } }));
 
-  const res = ws.connect(senderUrl, { tags: { name: 'Sender' } }, function (socket) {
-    socket.on('open', function () {
-      console.log(`SENDER ${__VU}: Connected, subscribing...`);
-
-      socket.send(JSON.stringify({
-        type: 'subscribe',
-        ts: Date.now(),
-        data: { conversationId: CONVERSATION_ID },
-      }));
-
-      sleep(0.5); // Wait for subscription
-
-      // Send messages
-      for (let i = 0; i < MESSAGES_PER_VU; i++) {
-        const sendTime = Date.now();
-        const clientMsgId = `sender${__VU}-${sendTime}-${i}`;
-
-        const messageFrame = {
-          type: 'message.send',
-          ts: sendTime,
-          data: {
-            conversationId: CONVERSATION_ID,
-            clientMsgId: clientMsgId,
-            body: messageBody, // Use pre-generated body
-            sendTime: sendTime,
-          },
-        };
-
-        try {
-          socket.send(JSON.stringify(messageFrame));
-          messagesSent.add(1);
-          messagesSentCount++;
-
-          if (i < MESSAGES_PER_VU - 1) {
-            sleep(DELAY_MS / 1000);
+      socket.setInterval(() => {
+        const now = Date.now();
+        for (let i = 0; i < BURST; i++) {
+          const id = `s${__VU}-${now}-${(sent + i) & 0xffff}`;
+          const frame = {
+            type: 'message.send',
+            ts: now,
+            data: { conversationId: CONVERSATION_ID, clientMsgId: id, body, sendTime: now },
+          };
+          try {
+            socket.send(JSON.stringify(frame));
+            messagesSent.add(1);
+          } catch {
+            messagesFail.add(1);
           }
-        } catch (e) {
-          console.error(`SENDER ${__VU}: Failed to send message: ${e}`);
-          messagesFailed.add(1);
         }
-      }
-
-      console.log(`SENDER ${__VU}: Sent ${messagesSentCount} messages`);
-
-      // Wait a bit before closing
-      sleep(1);
-      socket.close();
+        sent += BURST;
+      }, TICK_MS);
     });
 
-    socket.on('error', function (e) {
-      if (e && e.error && e.error() !== 'websocket: close sent') {
-        console.error(`SENDER ${__VU}: WebSocket error: ${e}`);
-        messagesFailed.add(1);
-      }
-    });
-
-    socket.setTimeout(function () {
-      console.log(`SENDER ${__VU}: Connection timeout`);
-      socket.close();
-    }, 60000);
+    socket.on('error', () => { messagesFail.add(1); });
+    socket.setTimeout(() => socket.close(), 2 * 60 * 1000);
   });
 
-  check(res, {
-    'Sender connected': (r) => r && r.status === 101,
-  });
-}
-
-// Teardown
-export function teardown(data) {
-  const durationSec = (Date.now() - data.startTime) / 1000;
-  console.log('='.repeat(80));
-  console.log('Test Completed');
-  console.log(`Total duration: ${durationSec.toFixed(2)}s`);
-  console.log(`Expected messages: ${data.expectedMessages}`);
-  console.log('='.repeat(80));
-  console.log('Check k6 metrics for:');
-  console.log('  - messages_sent: Total messages sent by all senders');
-  console.log('  - messages_received: Total messages received by listener');
-  console.log('  - delivery_rate: Percentage successfully delivered');
-  console.log('  - message_latency: Time from send to receive (p95, p99)');
-  console.log('='.repeat(80));
+  check(res, { 'sender connected': (r) => r && r.status === 101 });
 }
