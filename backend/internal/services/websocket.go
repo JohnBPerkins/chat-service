@@ -349,13 +349,23 @@ func (c *Client) handleFrame(frame *models.WSFrame) {
 }
 
 func (c *Client) sendFrame(frameType string, data interface{}) {
+	// Defer recover to catch any panics from sending on closed channel
+	defer func() {
+		if r := recover(); r != nil {
+			// Channel was closed during send - this is expected during shutdown
+			// Just log and return, don't panic
+			log.Printf("Recovered from panic in sendFrame for client %s: %v", c.ID, r)
+		}
+	}()
+
 	// Check if channel is closed
 	c.closedMu.RLock()
-	if c.closed {
-		c.closedMu.RUnlock()
+	closed := c.closed
+	c.closedMu.RUnlock()
+
+	if closed {
 		return
 	}
-	c.closedMu.RUnlock()
 
 	frame := &models.WSFrame{
 		Type: frameType,
@@ -363,6 +373,7 @@ func (c *Client) sendFrame(frameType string, data interface{}) {
 		Data: data,
 	}
 
+	// Try to send with timeout to prevent blocking
 	select {
 	case c.Send <- frame:
 		// Message sent successfully
@@ -621,13 +632,23 @@ func (h *WebSocketHub) broadcastToSubscription(sub *ConversationSubscription, fr
 	defer sub.ClientsMu.RUnlock()
 
 	for _, client := range sub.Clients {
-		select {
-		case client.Send <- frame:
-		default:
-			log.Printf("WebSocket client %s send buffer full during broadcast, closing connection", client.ID)
-			close(client.Send)
-			delete(sub.Clients, client.ID)
-		}
+		// Recover from any panics during broadcast (channel might close during send)
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("Recovered from panic broadcasting to client %s: %v", client.ID, r)
+				}
+			}()
+
+			select {
+			case client.Send <- frame:
+				// Sent successfully
+			default:
+				// Buffer full - mark for closure (don't close here, let readPump handle cleanup)
+				log.Printf("WebSocket client %s send buffer full during broadcast, will be closed", client.ID)
+				go client.safeClose() // Close asynchronously to avoid blocking broadcast
+			}
+		}()
 	}
 }
 
