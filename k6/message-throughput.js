@@ -74,7 +74,7 @@ export function listener() {
   const url = `${BASE_URL}/ws?userId=${encodeURIComponent(uid)}`;
   const seen = new Set();
 
-  const res = ws.connect(url, {}, (socket) => {
+  const res = ws.connect(url, { timeout: '30s' }, (socket) => {
     socket.on('open', () => {
       socket.send(JSON.stringify({ type: 'subscribe', ts: Date.now(), data: { conversationId: CONVERSATION_ID } }));
     });
@@ -113,7 +113,7 @@ export function sender() {
   const url = `${BASE_URL}/ws?userId=${encodeURIComponent(uid)}`;
   const body = `Load test: ${randomString(Math.max(1, MESSAGE_SIZE - 12))}`;
 
-  const res = ws.connect(url, {}, (socket) => {
+  const res = ws.connect(url, { timeout: '30s' }, (socket) => {
     let sent = 0;
 
     socket.on('open', () => {
@@ -160,11 +160,7 @@ export function handleSummary(data) {
   console.log(`Delivery Rate:       ${deliveryPct}% (${recv}/${sent})`);
   console.log('='.repeat(80));
 
-  if (recv > sent) {
-    console.log('⚠️  WARNING: More messages received than sent!');
-    console.log('   This usually means multiple listeners are counting the same message.');
-    console.log('   LISTENERS is now hardcoded to 1 to prevent this.');
-  } else if (deliveryPct < 95) {
+  if (deliveryPct < 95) {
     console.log('⚠️  WARNING: Delivery rate below 95% threshold');
     console.log(`   ${sent - recv} messages dropped or not yet received`);
   } else {
