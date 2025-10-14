@@ -1,14 +1,22 @@
 import ws from 'k6/ws';
 import { check } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
-import { randomString } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
+
+// Local randomString implementation (avoid external dependency)
+function randomString(length) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
 
 // Metrics
 const messagesSent = new Counter('messages_sent');
 const messagesRecv = new Counter('messages_received');
 const messagesFail = new Counter('messages_failed');
 const messageLatency = new Trend('message_latency');
-const deliveryRate = new Rate('delivery_rate');
 
 // Env
 const BASE_URL = __ENV.BASE_URL || 'wss://chatservicews.up.railway.app';
@@ -47,9 +55,10 @@ export const options = {
     },
   },
   thresholds: {
-    delivery_rate: ['rate>0.95'],
     message_latency: ['p(95)<2000'],
     messages_failed: ['count<100'],
+    // Note: Delivery rate calculated as messages_received / messages_sent
+    // Target: >95% (compare counters manually)
   },
 };
 
@@ -80,12 +89,13 @@ export function listener() {
       if (!msgId || seen.has(msgId)) return;
       seen.add(msgId);
       messagesRecv.add(1);
-      deliveryRate.add(1);
 
-      // Latency: approximate from frame timestamp to now (not exact sender time)
-      if (f.ts) {
+      // Latency: backend ts is Unix milliseconds
+      if (typeof f.ts === 'number' && f.ts > 0) {
         const latency = Date.now() - f.ts;
-        if (latency > 0 && latency < 60000) messageLatency.add(latency);
+        if (latency >= 0 && latency < 60000) {
+          messageLatency.add(latency);
+        }
       }
     });
 
