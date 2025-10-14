@@ -1,6 +1,7 @@
 import ws from 'k6/ws';
 import { check } from 'k6';
-import { Counter, Rate, Trend } from 'k6/metrics';
+import { Counter, Trend } from 'k6/metrics';
+import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.1/index.js';
 
 // Local randomString implementation (avoid external dependency)
 function randomString(length) {
@@ -33,8 +34,8 @@ const TICK_MS = Math.max(1, Math.floor(1000 / Math.max(1, (MSGS_PER_SEC / BURST)
 // Test length
 const DURATION = __ENV.DURATION || '30s';  // Shorter default: 30s
 
-// Optional extra listeners to avoid single-consumer bottleneck
-const LISTENERS = parseInt(__ENV.LISTENERS || '1', 10);
+// Always use 1 listener (multiple listeners count same message multiple times)
+const LISTENERS = 1;
 
 // Scenarios
 export const options = {
@@ -143,4 +144,35 @@ export function sender() {
   });
 
   check(res, { 'sender connected': (r) => r && r.status === 101 });
+}
+
+// Custom summary to display delivery rate
+export function handleSummary(data) {
+  const sent = data.metrics.messages_sent?.values.count || 0;
+  const recv = data.metrics.messages_received?.values.count || 0;
+  const deliveryPct = sent > 0 ? ((recv / sent) * 100).toFixed(2) : 0;
+
+  console.log('\n' + '='.repeat(80));
+  console.log('MESSAGE THROUGHPUT TEST SUMMARY');
+  console.log('='.repeat(80));
+  console.log(`Messages Sent:       ${sent.toLocaleString()}`);
+  console.log(`Messages Received:   ${recv.toLocaleString()}`);
+  console.log(`Delivery Rate:       ${deliveryPct}% (${recv}/${sent})`);
+  console.log('='.repeat(80));
+
+  if (recv > sent) {
+    console.log('⚠️  WARNING: More messages received than sent!');
+    console.log('   This usually means multiple listeners are counting the same message.');
+    console.log('   LISTENERS is now hardcoded to 1 to prevent this.');
+  } else if (deliveryPct < 95) {
+    console.log('⚠️  WARNING: Delivery rate below 95% threshold');
+    console.log(`   ${sent - recv} messages dropped or not yet received`);
+  } else {
+    console.log('✅  Delivery rate meets >95% threshold');
+  }
+  console.log('='.repeat(80) + '\n');
+
+  return {
+    'stdout': textSummary(data, { indent: ' ', enableColors: true }),
+  };
 }
