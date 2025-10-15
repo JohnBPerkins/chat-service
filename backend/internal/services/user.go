@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/JohnBPerkins/chat-service/backend/internal/models"
 	"github.com/JohnBPerkins/chat-service/backend/internal/validation"
@@ -13,11 +14,15 @@ import (
 )
 
 type UserService struct {
-	db *database.MongoDB
+	db    *database.MongoDB
+	cache sync.Map // Cache user info to reduce MongoDB reads
 }
 
 func NewUserService(db *database.MongoDB) *UserService {
-	return &UserService{db: db}
+	return &UserService{
+		db:    db,
+		cache: sync.Map{},
+	}
 }
 
 func (s *UserService) UpsertUser(ctx context.Context, user *models.User) error {
@@ -52,6 +57,10 @@ func (s *UserService) UpsertUser(ctx context.Context, user *models.User) error {
 		return fmt.Errorf("failed to upsert user: %w", err)
 	}
 
+	// Update cache by both ID and email
+	s.cache.Store(sanitizedUserID, user)
+	s.cache.Store("email:"+sanitizedEmail, user)
+
 	return nil
 }
 
@@ -62,6 +71,14 @@ func (s *UserService) GetUserByID(ctx context.Context, userID string) (*models.U
 		return nil, fmt.Errorf("invalid user ID: %w", err)
 	}
 
+	// Check cache first
+	if cached, ok := s.cache.Load(sanitizedUserID); ok {
+		if user, ok := cached.(*models.User); ok {
+			return user, nil
+		}
+	}
+
+	// Cache miss - fetch from MongoDB
 	collection := s.db.DB.Collection("users")
 
 	// Use primitive.M for type safety
@@ -75,6 +92,9 @@ func (s *UserService) GetUserByID(ctx context.Context, userID string) (*models.U
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
+	// Store in cache
+	s.cache.Store(sanitizedUserID, &user)
+
 	return &user, nil
 }
 
@@ -85,6 +105,15 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*models
 		return nil, fmt.Errorf("invalid email: %w", err)
 	}
 
+	// Check cache by email (use "email:" prefix to avoid collision with IDs)
+	cacheKey := "email:" + sanitizedEmail
+	if cached, ok := s.cache.Load(cacheKey); ok {
+		if user, ok := cached.(*models.User); ok {
+			return user, nil
+		}
+	}
+
+	// Cache miss - fetch from MongoDB
 	collection := s.db.DB.Collection("users")
 
 	// Use primitive.M for type safety
@@ -97,6 +126,10 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*models
 		}
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
+
+	// Store in cache by both ID and email
+	s.cache.Store(user.ID, &user)
+	s.cache.Store(cacheKey, &user)
 
 	return &user, nil
 }
