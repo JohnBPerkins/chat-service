@@ -180,6 +180,7 @@ type WSMessageNewData struct {
 	ID             int64     `json:"id"`
 	ConversationID string    `json:"conversationId"`
 	SenderID       string    `json:"senderId"`
+	ClientMsgID    string    `json:"clientMsgId,omitempty"`
 	Body           string    `json:"body"`
 	CreatedAt      time.Time `json:"createdAt"`
 	Sender         *User     `json:"sender,omitempty"`

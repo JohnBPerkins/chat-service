@@ -25,6 +25,9 @@ const USER_ID = __ENV.USER_ID || '';
 const CONVERSATION_ID = __ENV.CONVERSATION_ID || '';
 const MESSAGE_SIZE = parseInt(__ENV.MESSAGE_SIZE || '100', 10);
 
+// Generate unique test run ID to filter messages from this run only
+const TEST_RUN_ID = `run-${Date.now()}`;
+
 // Rate tuning
 const SENDER_VUS = parseInt(__ENV.SENDER_VUS || '20', 10);        // more VUs = more sockets (default: 20)
 const MSGS_PER_SEC = parseInt(__ENV.MSGS_PER_SEC || '50', 10);    // per VU (default: 50)
@@ -85,6 +88,11 @@ export function listener() {
       try { f = JSON.parse(raw); } catch { return; }
       if (f.type !== 'message.new' || !f.data) return;
 
+      // Filter out messages from other test runs
+      if (f.data.clientMsgId && !f.data.clientMsgId.startsWith(TEST_RUN_ID)) {
+        return; // Skip messages from previous test runs
+      }
+
       // Backend sends server-generated 'id', not 'clientMsgId'
       const msgId = f.data.id;
       if (!msgId || seen.has(msgId)) return;
@@ -122,7 +130,7 @@ export function sender() {
       socket.setInterval(() => {
         const now = Date.now();
         for (let i = 0; i < BURST; i++) {
-          const id = `s${__VU}-${now}-${(sent + i) & 0xffff}`;
+          const id = `${TEST_RUN_ID}-s${__VU}-${now}-${(sent + i) & 0xffff}`;
           const frame = {
             type: 'message.send',
             ts: now,

@@ -139,6 +139,7 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 			ID:             message.ID,
 			ConversationID: message.ConversationID,
 			SenderID:       message.SenderID,
+			ClientMsgID:    message.ClientMsgID,
 			Body:           sanitizedBody,
 			CreatedAt:      message.CreatedAt,
 			Sender:         messageWithSender.Sender,
