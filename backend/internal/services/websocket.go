@@ -89,7 +89,7 @@ func (h *WebSocketHub) HandleWebSocket(w http.ResponseWriter, r *http.Request, u
 		ID:            clientID,
 		UserID:        userID,
 		Conn:          conn,
-		Send:          make(chan *models.WSFrame, 10000), // Increased from 1024 to 10000
+		Send:          make(chan *models.WSFrame, 100000), // Increased to 100k for high-throughput broadcasts
 		Hub:           h,
 		subscriptions: make(map[string]bool),
 	}
@@ -494,44 +494,47 @@ func (h *WebSocketHub) setupNATSSubscriptions(sub *ConversationSubscription) {
 	// Subscribe to messages (JetStream)
 	messageSubject := fmt.Sprintf("chat.conv.%s.msg", sub.ConversationID)
 	natsSub, err := h.natsConn.Conn.Subscribe(messageSubject, func(msg *natsgo.Msg) {
-		// Try to unmarshal as message deletion first
-		var deletionData models.WSMessageDeletedData
-		if err := json.Unmarshal(msg.Data, &deletionData); err == nil && deletionData.DeletedBy != "" {
-			frame := &models.WSFrame{
-				Type: "message.deleted",
-				TS:   time.Now().UnixMilli(),
-				Data: deletionData,
+		// Process each NATS message in parallel to prevent blocking
+		go func() {
+			// Try to unmarshal as message deletion first
+			var deletionData models.WSMessageDeletedData
+			if err := json.Unmarshal(msg.Data, &deletionData); err == nil && deletionData.DeletedBy != "" {
+				frame := &models.WSFrame{
+					Type: "message.deleted",
+					TS:   time.Now().UnixMilli(),
+					Data: deletionData,
+				}
+				h.broadcastToSubscription(sub, frame)
+				return
 			}
-			h.broadcastToSubscription(sub, frame)
-			return
-		}
 
-		// Try to unmarshal as message edit
-		var editData models.WSMessageEditedData
-		if err := json.Unmarshal(msg.Data, &editData); err == nil && editData.EditedBy != "" {
-			frame := &models.WSFrame{
-				Type: "message.edited",
-				TS:   time.Now().UnixMilli(),
-				Data: editData,
+			// Try to unmarshal as message edit
+			var editData models.WSMessageEditedData
+			if err := json.Unmarshal(msg.Data, &editData); err == nil && editData.EditedBy != "" {
+				frame := &models.WSFrame{
+					Type: "message.edited",
+					TS:   time.Now().UnixMilli(),
+					Data: editData,
+				}
+				h.broadcastToSubscription(sub, frame)
+				return
 			}
+
+			// Otherwise, try to unmarshal as new message
+			var messageData models.WSMessageNewData
+			if err := json.Unmarshal(msg.Data, &messageData); err != nil {
+				log.Printf("Failed to unmarshal message data: %v", err)
+				return
+			}
+
+			frame := &models.WSFrame{
+				Type: "message.new",
+				TS:   time.Now().UnixMilli(),
+				Data: messageData,
+			}
+
 			h.broadcastToSubscription(sub, frame)
-			return
-		}
-
-		// Otherwise, try to unmarshal as new message
-		var messageData models.WSMessageNewData
-		if err := json.Unmarshal(msg.Data, &messageData); err != nil {
-			log.Printf("Failed to unmarshal message data: %v", err)
-			return
-		}
-
-		frame := &models.WSFrame{
-			Type: "message.new",
-			TS:   time.Now().UnixMilli(),
-			Data: messageData,
-		}
-
-		h.broadcastToSubscription(sub, frame)
+		}()
 	})
 	if err != nil {
 		log.Printf("Failed to subscribe to messages: %v", err)
@@ -541,19 +544,21 @@ func (h *WebSocketHub) setupNATSSubscriptions(sub *ConversationSubscription) {
 	// Subscribe to typing indicators
 	typingSubject := fmt.Sprintf("chat.conv.%s.typing", sub.ConversationID)
 	typingSub, err := h.natsConn.Conn.Subscribe(typingSubject, func(msg *natsgo.Msg) {
-		var typingData models.WSTypingUpdateEventData
-		if err := json.Unmarshal(msg.Data, &typingData); err != nil {
-			log.Printf("Failed to unmarshal typing data: %v", err)
-			return
-		}
+		go func() {
+			var typingData models.WSTypingUpdateEventData
+			if err := json.Unmarshal(msg.Data, &typingData); err != nil {
+				log.Printf("Failed to unmarshal typing data: %v", err)
+				return
+			}
 
-		frame := &models.WSFrame{
-			Type: "typing.update",
-			TS:   time.Now().UnixMilli(),
-			Data: typingData,
-		}
+			frame := &models.WSFrame{
+				Type: "typing.update",
+				TS:   time.Now().UnixMilli(),
+				Data: typingData,
+			}
 
-		h.broadcastToSubscription(sub, frame)
+			h.broadcastToSubscription(sub, frame)
+		}()
 	})
 	if err != nil {
 		log.Printf("Failed to subscribe to typing: %v", err)
@@ -563,19 +568,21 @@ func (h *WebSocketHub) setupNATSSubscriptions(sub *ConversationSubscription) {
 	// Subscribe to presence/receipts
 	presenceSubject := fmt.Sprintf("chat.conv.%s.presence", sub.ConversationID)
 	presenceSub, err := h.natsConn.Conn.Subscribe(presenceSubject, func(msg *natsgo.Msg) {
-		var receiptData models.WSReceiptUpdateData
-		if err := json.Unmarshal(msg.Data, &receiptData); err != nil {
-			log.Printf("Failed to unmarshal receipt data: %v", err)
-			return
-		}
+		go func() {
+			var receiptData models.WSReceiptUpdateData
+			if err := json.Unmarshal(msg.Data, &receiptData); err != nil {
+				log.Printf("Failed to unmarshal receipt data: %v", err)
+				return
+			}
 
-		frame := &models.WSFrame{
-			Type: "receipt.update",
-			TS:   time.Now().UnixMilli(),
-			Data: receiptData,
-		}
+			frame := &models.WSFrame{
+				Type: "receipt.update",
+				TS:   time.Now().UnixMilli(),
+				Data: receiptData,
+			}
 
-		h.broadcastToSubscription(sub, frame)
+			h.broadcastToSubscription(sub, frame)
+		}()
 	})
 	if err != nil {
 		log.Printf("Failed to subscribe to presence: %v", err)
@@ -585,19 +592,21 @@ func (h *WebSocketHub) setupNATSSubscriptions(sub *ConversationSubscription) {
 	// Subscribe to participant updates
 	participantSubject := fmt.Sprintf("chat.conv.%s.participants", sub.ConversationID)
 	participantSub, err := h.natsConn.Conn.Subscribe(participantSubject, func(msg *natsgo.Msg) {
-		var participantData models.WSParticipantUpdateData
-		if err := json.Unmarshal(msg.Data, &participantData); err != nil {
-			log.Printf("Failed to unmarshal participant update data: %v", err)
-			return
-		}
+		go func() {
+			var participantData models.WSParticipantUpdateData
+			if err := json.Unmarshal(msg.Data, &participantData); err != nil {
+				log.Printf("Failed to unmarshal participant update data: %v", err)
+				return
+			}
 
-		frame := &models.WSFrame{
-			Type: "participant.update",
-			TS:   time.Now().UnixMilli(),
-			Data: participantData,
-		}
+			frame := &models.WSFrame{
+				Type: "participant.update",
+				TS:   time.Now().UnixMilli(),
+				Data: participantData,
+			}
 
-		h.broadcastToSubscription(sub, frame)
+			h.broadcastToSubscription(sub, frame)
+		}()
 	})
 	if err != nil {
 		log.Printf("Failed to subscribe to participant updates: %v", err)
@@ -607,19 +616,21 @@ func (h *WebSocketHub) setupNATSSubscriptions(sub *ConversationSubscription) {
 	// Subscribe to conversation updates
 	conversationUpdateSubject := fmt.Sprintf("chat.conv.%s.updates", sub.ConversationID)
 	conversationUpdateSub, err := h.natsConn.Conn.Subscribe(conversationUpdateSubject, func(msg *natsgo.Msg) {
-		var conversationData models.WSConversationUpdateData
-		if err := json.Unmarshal(msg.Data, &conversationData); err != nil {
-			log.Printf("Failed to unmarshal conversation update data: %v", err)
-			return
-		}
+		go func() {
+			var conversationData models.WSConversationUpdateData
+			if err := json.Unmarshal(msg.Data, &conversationData); err != nil {
+				log.Printf("Failed to unmarshal conversation update data: %v", err)
+				return
+			}
 
-		frame := &models.WSFrame{
-			Type: "conversation.update",
-			TS:   time.Now().UnixMilli(),
-			Data: conversationData,
-		}
+			frame := &models.WSFrame{
+				Type: "conversation.update",
+				TS:   time.Now().UnixMilli(),
+				Data: conversationData,
+			}
 
-		h.broadcastToSubscription(sub, frame)
+			h.broadcastToSubscription(sub, frame)
+		}()
 	})
 	if err != nil {
 		log.Printf("Failed to subscribe to conversation updates: %v", err)
