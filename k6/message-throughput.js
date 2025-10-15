@@ -69,6 +69,8 @@ export const options = {
 // Lightweight setup checks
 export function setup() {
   if (!USER_ID || !CONVERSATION_ID) throw new Error('USER_ID and CONVERSATION_ID required');
+  console.log(`Test Run ID: ${TEST_RUN_ID}`);
+  console.log(`Sender VUs: ${SENDER_VUS}, Messages/sec per VU: ${MSGS_PER_SEC}`);
 }
 
 // Listener(s) – minimal logging, map for de-dupe & latency
@@ -76,6 +78,8 @@ export function listener() {
   const uid = `${USER_ID}-listener-${__VU}`;
   const url = `${BASE_URL}/ws?userId=${encodeURIComponent(uid)}`;
   const seen = new Set();
+  let skipped = 0;
+  let total = 0;
 
   const res = ws.connect(url, { timeout: '30s' }, (socket) => {
     socket.on('open', () => {
@@ -88,9 +92,15 @@ export function listener() {
       try { f = JSON.parse(raw); } catch { return; }
       if (f.type !== 'message.new' || !f.data) return;
 
-      // Filter out messages from other test runs
-      if (f.data.clientMsgId && !f.data.clientMsgId.startsWith(TEST_RUN_ID)) {
-        return; // Skip messages from previous test runs
+      total++;
+
+      // Only count messages from THIS test run
+      if (!f.data.clientMsgId || !f.data.clientMsgId.startsWith(TEST_RUN_ID)) {
+        skipped++;
+        if (skipped <= 5) {
+          console.log(`Skipped: clientMsgId=${f.data.clientMsgId}, id=${f.data.id}`);
+        }
+        return; // Skip messages without clientMsgId or from other test runs
       }
 
       // Backend sends server-generated 'id', not 'clientMsgId'
