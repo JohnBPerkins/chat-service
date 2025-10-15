@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/JohnBPerkins/chat-service/backend/internal/models"
@@ -19,6 +20,7 @@ type MessageService struct {
 	db          *database.MongoDB
 	nats        *nats.NATSConnection
 	userService *UserService
+	idCounter   atomic.Uint64 // Atomic counter to prevent ID collisions
 }
 
 func NewMessageService(db *database.MongoDB, natsConn *nats.NATSConnection, userService *UserService) *MessageService {
@@ -52,8 +54,8 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 
 	collection := s.db.DB.Collection("messages")
 
-	// Generate snowflake ID (simplified version)
-	messageID := generateSnowflakeID()
+	// Generate collision-resistant ID (timestamp + atomic counter)
+	messageID := s.generateSnowflakeID()
 
 	message := &models.Message{
 		ID:             messageID,
@@ -442,8 +444,14 @@ func (s *MessageService) EditMessage(ctx context.Context, messageID int64, newBo
 	return messageWithSender, nil
 }
 
-// generateSnowflakeID is a simplified snowflake ID generator
-// In production, use a proper snowflake library
-func generateSnowflakeID() int64 {
-	return time.Now().UnixMilli()
+// generateSnowflakeID generates a collision-resistant ID
+// Format: timestamp (42 bits) + counter (22 bits)
+// This prevents collisions when multiple messages arrive in the same millisecond
+func (s *MessageService) generateSnowflakeID() int64 {
+	timestamp := time.Now().UnixMilli()
+	counter := s.idCounter.Add(1) & 0x3FFFFF // 22-bit counter (wraps at 4M)
+
+	// Combine: shift timestamp left 22 bits, OR with counter
+	// This gives us ~4 million unique IDs per millisecond
+	return (timestamp << 22) | int64(counter)
 }
