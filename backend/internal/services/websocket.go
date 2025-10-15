@@ -212,20 +212,17 @@ func (c *Client) handleFrame(frame *models.WSFrame) {
 			Body:           data.Body,
 		}
 
-		// Send message async - don't block WebSocket on MongoDB writes
-		go func() {
-			bgCtx := context.Background()
-			_, err := c.Hub.messageService.SendMessage(bgCtx, req, c.UserID)
-			if err != nil {
-				log.Printf("Async message persistence failed for client %s: %v", c.ID, err)
-			}
-		}()
+		message, err := c.Hub.messageService.SendMessage(ctx, req, c.UserID)
+		if err != nil {
+			c.sendError("SEND_FAILED", fmt.Sprintf("Failed to send message: %v", err))
+			return
+		}
 
-		// Send immediate acknowledgment (message accepted, will be persisted async)
+		// Send acknowledgment
 		ackData := &models.WSMessageAckData{
 			ClientMsgID: data.ClientMsgID,
-			ID:          0, // Set to 0 for async mode, or generate ID here if needed
-			CreatedAt:   time.Now(),
+			ID:          message.ID,
+			CreatedAt:   message.CreatedAt,
 		}
 		c.sendFrame("message.ack", ackData)
 
