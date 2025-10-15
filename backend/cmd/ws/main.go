@@ -108,9 +108,6 @@ func main() {
 		}
 	})
 
-	// NATS JetStream metrics
-	r.Get("/metrics/nats", handlers.HandleNATSMetrics(natsConn))
-
 	// WebSocket endpoint
 	r.Get("/ws", handlers.HandleWebSocket)
 
