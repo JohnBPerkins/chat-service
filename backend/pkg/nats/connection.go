@@ -22,15 +22,21 @@ func NewConnection(url string) (*NATSConnection, error) {
 		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
 	}
 
-	// Create JetStream context
+	// Create JetStream context (kept for future use, but not creating streams)
 	js, err := jetstream.New(nc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JetStream context: %w", err)
 	}
 
-	// Create or update the CHAT stream
-	if err := createChatStream(js); err != nil {
-		return nil, fmt.Errorf("failed to create CHAT stream: %w", err)
+	// Delete old CHAT stream if it exists (cleanup from previous architecture)
+	ctx := context.Background()
+	if err := js.DeleteStream(ctx, "CHAT"); err != nil {
+		// Ignore error if stream doesn't exist
+		if err.Error() != "stream not found" {
+			log.Printf("Warning: failed to delete old CHAT stream: %v", err)
+		}
+	} else {
+		log.Println("Deleted old CHAT stream (now using regular NATS pub/sub)")
 	}
 
 	return &NATSConnection{
@@ -41,39 +47,6 @@ func NewConnection(url string) (*NATSConnection, error) {
 
 func (nc *NATSConnection) Close() {
 	nc.Conn.Close()
-}
-
-func createChatStream(js jetstream.JetStream) error {
-	streamConfig := jetstream.StreamConfig{
-		Name:        "CHAT",
-		Description: "Chat messages stream (short-term buffer only, messages persisted in MongoDB)",
-		Subjects:    []string{"chat.conv.*.msg"},
-		Storage:     jetstream.MemoryStorage, // Use memory storage for ephemeral buffering
-		MaxAge:      60 * 1e9, // Keep messages for 60 seconds only (1 minute buffer)
-		MaxBytes:    50 * 1024 * 1024, // 50MB max (reduced from 1GB)
-		MaxMsgs:     10000, // Keep last 10k messages max
-		Replicas:    1,
-	}
-
-	// Try to create stream, if it exists, update it
-	ctx := context.Background()
-	_, err := js.CreateStream(ctx, streamConfig)
-	if err != nil {
-		// If stream already exists, try to update it
-		if err.Error() == "stream name already in use" {
-			_, err = js.UpdateStream(ctx, streamConfig)
-			if err != nil {
-				return fmt.Errorf("failed to update stream: %w", err)
-			}
-			log.Println("Updated existing CHAT stream with new retention policy")
-		} else {
-			return fmt.Errorf("failed to create stream: %w", err)
-		}
-	} else {
-		log.Println("Created CHAT stream")
-	}
-
-	return nil
 }
 
 // PublishMessage publishes a message using regular NATS (ephemeral, no persistence)
