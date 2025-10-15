@@ -632,11 +632,21 @@ func (h *WebSocketHub) broadcastToSubscription(sub *ConversationSubscription, fr
 	defer sub.ClientsMu.RUnlock()
 
 	for _, client := range sub.Clients {
-		// Recover from any panics during broadcast (channel might close during send)
+		// Skip clients that are already closed
+		client.closedMu.RLock()
+		isClosed := client.closed
+		client.closedMu.RUnlock()
+
+		if isClosed {
+			continue // Skip this client, readPump will handle cleanup
+		}
+
+		// Try to send with recovery as last resort
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					log.Printf("Recovered from panic broadcasting to client %s: %v", client.ID, r)
+					// Rare: channel closed between check and send
+					// Don't log spam - this is expected during concurrent shutdown
 				}
 			}()
 
@@ -644,9 +654,9 @@ func (h *WebSocketHub) broadcastToSubscription(sub *ConversationSubscription, fr
 			case client.Send <- frame:
 				// Sent successfully
 			default:
-				// Buffer full - mark for closure (don't close here, let readPump handle cleanup)
-				log.Printf("WebSocket client %s send buffer full during broadcast, will be closed", client.ID)
-				go client.safeClose() // Close asynchronously to avoid blocking broadcast
+				// Buffer full - close connection
+				log.Printf("WebSocket client %s send buffer full during broadcast", client.ID)
+				go client.safeClose()
 			}
 		}()
 	}
