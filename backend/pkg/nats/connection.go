@@ -46,12 +46,12 @@ func (nc *NATSConnection) Close() {
 func createChatStream(js jetstream.JetStream) error {
 	streamConfig := jetstream.StreamConfig{
 		Name:        "CHAT",
-		Description: "Chat messages stream",
+		Description: "Chat messages stream (short-term buffer only, messages persisted in MongoDB)",
 		Subjects:    []string{"chat.conv.*.msg"},
-		Storage:     jetstream.FileStorage,
-		MaxAge:      0, // Keep messages indefinitely
-		MaxBytes:    1024 * 1024 * 1024, // 1GB max
-		MaxMsgs:     -1, // No message limit
+		Storage:     jetstream.MemoryStorage, // Use memory storage for ephemeral buffering
+		MaxAge:      60 * 1e9, // Keep messages for 60 seconds only (1 minute buffer)
+		MaxBytes:    50 * 1024 * 1024, // 50MB max (reduced from 1GB)
+		MaxMsgs:     10000, // Keep last 10k messages max
 		Replicas:    1,
 	}
 
@@ -65,7 +65,7 @@ func createChatStream(js jetstream.JetStream) error {
 			if err != nil {
 				return fmt.Errorf("failed to update stream: %w", err)
 			}
-			log.Println("Updated existing CHAT stream")
+			log.Println("Updated existing CHAT stream with new retention policy")
 		} else {
 			return fmt.Errorf("failed to create stream: %w", err)
 		}
@@ -76,7 +76,8 @@ func createChatStream(js jetstream.JetStream) error {
 	return nil
 }
 
-// PublishMessage publishes a message to the appropriate JetStream subject
+// PublishMessage publishes a message using regular NATS (ephemeral, no persistence)
+// Messages are already persisted in MongoDB, so we only need real-time delivery
 func (nc *NATSConnection) PublishMessage(conversationID string, data interface{}) error {
 	subject := fmt.Sprintf("chat.conv.%s.msg", conversationID)
 
@@ -85,8 +86,8 @@ func (nc *NATSConnection) PublishMessage(conversationID string, data interface{}
 		return fmt.Errorf("failed to marshal message data: %w", err)
 	}
 
-	ctx := context.Background()
-	_, err = nc.JS.Publish(ctx, subject, jsonData)
+	// Use regular NATS publish (ephemeral, no JetStream persistence)
+	err = nc.Conn.Publish(subject, jsonData)
 	if err != nil {
 		return fmt.Errorf("failed to publish message: %w", err)
 	}
