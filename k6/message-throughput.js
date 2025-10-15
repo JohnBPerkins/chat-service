@@ -25,9 +25,6 @@ const USER_ID = __ENV.USER_ID || '';
 const CONVERSATION_ID = __ENV.CONVERSATION_ID || '';
 const MESSAGE_SIZE = parseInt(__ENV.MESSAGE_SIZE || '100', 10);
 
-// Generate unique test run ID to filter messages from this run only
-const TEST_RUN_ID = `run-${Date.now()}`;
-
 // Rate tuning
 const SENDER_VUS = parseInt(__ENV.SENDER_VUS || '20', 10);        // more VUs = more sockets (default: 20)
 const MSGS_PER_SEC = parseInt(__ENV.MSGS_PER_SEC || '50', 10);    // per VU (default: 50)
@@ -69,12 +66,19 @@ export const options = {
 // Lightweight setup checks
 export function setup() {
   if (!USER_ID || !CONVERSATION_ID) throw new Error('USER_ID and CONVERSATION_ID required');
+
+  // Generate unique test run ID once and share across all VUs
+  const TEST_RUN_ID = `run-${Date.now()}`;
+
   console.log(`Test Run ID: ${TEST_RUN_ID}`);
   console.log(`Sender VUs: ${SENDER_VUS}, Messages/sec per VU: ${MSGS_PER_SEC}`);
+
+  return { TEST_RUN_ID };
 }
 
 // Listener(s) – minimal logging, map for de-dupe & latency
-export function listener() {
+export function listener(data) {
+  const TEST_RUN_ID = data.TEST_RUN_ID;
   const uid = `${USER_ID}-listener-${__VU}`;
   const url = `${BASE_URL}/ws?userId=${encodeURIComponent(uid)}`;
   const seen = new Set();
@@ -93,6 +97,13 @@ export function listener() {
       if (f.type !== 'message.new' || !f.data) return;
 
       total++;
+
+      // DEBUG: Log first 10 messages to see what's happening
+      if (total <= 10) {
+        console.log(`DEBUG msg ${total}: type=${f.type},
+        clientMsgId="${f.data.clientMsgId}", id=${f.data.id},
+        startsWithRun=${f.data.clientMsgId?.startsWith(TEST_RUN_ID)}`);
+      }
 
       // Only count messages from THIS test run
       if (!f.data.clientMsgId || !f.data.clientMsgId.startsWith(TEST_RUN_ID)) {
@@ -126,7 +137,8 @@ export function listener() {
 }
 
 // Sender – emits bursts on setInterval for tighter pacing
-export function sender() {
+export function sender(data) {
+  const TEST_RUN_ID = data.TEST_RUN_ID;
   const uid = `${USER_ID}-sender-${__VU}`;
   const url = `${BASE_URL}/ws?userId=${encodeURIComponent(uid)}`;
   const body = `Load test: ${randomString(Math.max(1, MESSAGE_SIZE - 12))}`;
