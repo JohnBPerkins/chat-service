@@ -28,17 +28,6 @@ func NewConnection(url string) (*NATSConnection, error) {
 		return nil, fmt.Errorf("failed to create JetStream context: %w", err)
 	}
 
-	// Delete old CHAT stream if it exists (cleanup from previous architecture)
-	ctx := context.Background()
-	if err := js.DeleteStream(ctx, "CHAT"); err != nil {
-		// Ignore error if stream doesn't exist
-		if err.Error() != "stream not found" {
-			log.Printf("Warning: failed to delete old CHAT stream: %v", err)
-		}
-	} else {
-		log.Println("Deleted old CHAT stream (now using regular NATS pub/sub)")
-	}
-
 	return &NATSConnection{
 		Conn: nc,
 		JS:   js,
