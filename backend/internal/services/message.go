@@ -189,7 +189,7 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 		messageWithSender.Sender = sender
 	}
 
-	// Publish to NATS JetStream (if NATS is available)
+	// Publish to NATS (if NATS is available)
 	if s.nats != nil {
 		wsMessageData := &models.WSMessageNewData{
 			ID:             message.ID,
@@ -205,7 +205,9 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 		err = s.nats.PublishMessage(sanitizedConversationID, wsMessageData)
 		if err != nil {
 			// Log error but don't fail the request - message is already persisted
-			fmt.Printf("Failed to publish message to NATS: %v\n", err)
+			fmt.Printf("Failed to publish message %d to NATS: %v\n", message.ID, err)
+		} else {
+			fmt.Printf("Published message %d to NATS for conversation %s\n", message.ID, sanitizedConversationID)
 		}
 	}
 

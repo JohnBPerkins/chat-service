@@ -492,7 +492,7 @@ func (h *WebSocketHub) unsubscribeClient(client *Client, conversationID string) 
 }
 
 func (h *WebSocketHub) setupNATSSubscriptions(sub *ConversationSubscription) {
-	// Subscribe to messages (JetStream)
+	// Subscribe to messages (regular NATS pub/sub, not JetStream)
 	messageSubject := fmt.Sprintf("chat.conv.%s.msg", sub.ConversationID)
 	natsSub, err := h.natsConn.Conn.Subscribe(messageSubject, func(msg *natsgo.Msg) {
 		// Process each NATS message in parallel to prevent blocking
@@ -526,6 +526,15 @@ func (h *WebSocketHub) setupNATSSubscriptions(sub *ConversationSubscription) {
 			if err := json.Unmarshal(msg.Data, &messageData); err != nil {
 				log.Printf("Failed to unmarshal message data: %v", err)
 				return
+			}
+
+			sub.ClientsMu.RLock()
+			clientCount := len(sub.Clients)
+			sub.ClientsMu.RUnlock()
+
+			// Debug: Log NATS message received
+			if clientCount > 0 {
+				log.Printf("NATS received message %d for conv %s, broadcasting to %d clients", messageData.ID, sub.ConversationID, clientCount)
 			}
 
 			frame := &models.WSFrame{
@@ -641,6 +650,13 @@ func (h *WebSocketHub) setupNATSSubscriptions(sub *ConversationSubscription) {
 
 func (h *WebSocketHub) broadcastToSubscription(sub *ConversationSubscription, frame *models.WSFrame) {
 	sub.ClientsMu.RLock()
+	clientCount := len(sub.Clients)
+	sub.ClientsMu.RUnlock()
+
+	successCount := 0
+	droppedCount := 0
+
+	sub.ClientsMu.RLock()
 	defer sub.ClientsMu.RUnlock()
 
 	for _, client := range sub.Clients {
@@ -665,12 +681,17 @@ func (h *WebSocketHub) broadcastToSubscription(sub *ConversationSubscription, fr
 			select {
 			case client.Send <- frame:
 				// Sent successfully
+				successCount++
 			default:
 				// Buffer full - drop message to prevent client disconnect
 				// In high-throughput scenarios, dropping occasional messages is better than disconnecting
-				// Don't log every drop to avoid log spam - client stays connected
+				droppedCount++
 			}
 		}()
+	}
+
+	if frame.Type == "message.new" && clientCount > 0 {
+		log.Printf("Broadcasted %s to %d/%d clients (dropped: %d)", frame.Type, successCount, clientCount, droppedCount)
 	}
 }
 
