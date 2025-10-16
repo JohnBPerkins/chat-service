@@ -46,10 +46,9 @@ func NewMongoDB(uri, dbName string) (*MongoDB, error) {
 	db := client.Database(dbName)
 
 	// Create indexes
-	// Temporarily disabled to isolate connection issue
-	// if err := createIndexes(ctx, db); err != nil {
-	// 	return nil, err
-	// }
+	if err := createIndexes(ctx, db); err != nil {
+		return nil, err
+	}
 
 	return &MongoDB{
 		Client: client,
