@@ -52,6 +52,17 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 		return nil, fmt.Errorf("invalid message body: %w", err)
 	}
 
+	// Verify conversation exists
+	conversationsCollection := s.db.DB.Collection("conversations")
+	var conversation models.Conversation
+	err = conversationsCollection.FindOne(ctx, bson.M{"_id": sanitizedConversationID}).Decode(&conversation)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, fmt.Errorf("conversation not found")
+		}
+		return nil, fmt.Errorf("failed to verify conversation: %w", err)
+	}
+
 	collection := s.db.DB.Collection("messages")
 
 	// Generate collision-resistant ID (timestamp + atomic counter)
