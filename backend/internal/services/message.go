@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -19,19 +20,22 @@ import (
 )
 
 type MessageService struct {
-	db          *database.MongoDB
-	nats        *nats.NATSConnection
-	userService *UserService
-	idCounter   atomic.Uint64 // Atomic counter to prevent ID collisions
-	instanceID  uint64        // Unique instance ID for this replica (0-1023)
+	db                 *database.MongoDB
+	nats               *nats.NATSConnection
+	userService        *UserService
+	idCounter          atomic.Uint64      // Atomic counter to prevent ID collisions
+	instanceID         uint64             // Unique instance ID for this replica (0-1023)
+	conversationCache  map[string]bool    // Cache of validated conversation IDs
+	conversationCacheMu sync.RWMutex      // Protects conversation cache
 }
 
 func NewMessageService(db *database.MongoDB, natsConn *nats.NATSConnection, userService *UserService) *MessageService {
 	ms := &MessageService{
-		db:          db,
-		nats:        natsConn,
-		userService: userService,
-		instanceID:  generateInstanceID(),
+		db:                db,
+		nats:              natsConn,
+		userService:       userService,
+		instanceID:        generateInstanceID(),
+		conversationCache: make(map[string]bool),
 	}
 
 	fmt.Printf("Message service started with instance ID: %d\n", ms.instanceID)
@@ -47,6 +51,32 @@ func generateInstanceID() uint64 {
 		return uint64(time.Now().UnixNano()) & 0x3FF
 	}
 	return binary.BigEndian.Uint64(buf[:]) & 0x3FF // 10 bits = 1024 possible instances
+}
+
+// conversationExists checks if a conversation exists, using an in-memory cache to reduce DB queries
+func (s *MessageService) conversationExists(ctx context.Context, conversationID string) bool {
+	// Check cache first (read lock)
+	s.conversationCacheMu.RLock()
+	exists, cached := s.conversationCache[conversationID]
+	s.conversationCacheMu.RUnlock()
+
+	if cached {
+		return exists
+	}
+
+	// Not in cache - query MongoDB
+	conversationsCollection := s.db.DB.Collection("conversations")
+	var conversation models.Conversation
+	err := conversationsCollection.FindOne(ctx, bson.M{"_id": conversationID}).Decode(&conversation)
+
+	exists = (err == nil)
+
+	// Update cache (write lock)
+	s.conversationCacheMu.Lock()
+	s.conversationCache[conversationID] = exists
+	s.conversationCacheMu.Unlock()
+
+	return exists
 }
 
 
@@ -71,15 +101,9 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 		return nil, fmt.Errorf("invalid message body: %w", err)
 	}
 
-	// Verify conversation exists
-	conversationsCollection := s.db.DB.Collection("conversations")
-	var conversation models.Conversation
-	err = conversationsCollection.FindOne(ctx, bson.M{"_id": sanitizedConversationID}).Decode(&conversation)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("conversation not found")
-		}
-		return nil, fmt.Errorf("failed to verify conversation: %w", err)
+	// Verify conversation exists (with caching to reduce DB load)
+	if !s.conversationExists(ctx, sanitizedConversationID) {
+		return nil, fmt.Errorf("conversation not found")
 	}
 
 	collection := s.db.DB.Collection("messages")
