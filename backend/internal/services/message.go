@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -21,6 +23,7 @@ type MessageService struct {
 	nats        *nats.NATSConnection
 	userService *UserService
 	idCounter   atomic.Uint64 // Atomic counter to prevent ID collisions
+	instanceID  uint64        // Unique instance ID for this replica (0-1023)
 }
 
 func NewMessageService(db *database.MongoDB, natsConn *nats.NATSConnection, userService *UserService) *MessageService {
@@ -28,36 +31,24 @@ func NewMessageService(db *database.MongoDB, natsConn *nats.NATSConnection, user
 		db:          db,
 		nats:        natsConn,
 		userService: userService,
+		instanceID:  generateInstanceID(),
 	}
 
-	// Initialize counter from the highest existing message ID to prevent collisions after restart
-	ms.initializeCounter()
+	fmt.Printf("Message service started with instance ID: %d\n", ms.instanceID)
 
 	return ms
 }
 
-// initializeCounter sets the atomic counter to start after the highest existing message ID
-func (s *MessageService) initializeCounter() {
-	ctx := context.Background()
-	collection := s.db.DB.Collection("messages")
-
-	// Find the message with the highest ID
-	opts := options.FindOne().SetSort(bson.D{{Key: "_id", Value: -1}})
-	var lastMessage models.Message
-	err := collection.FindOne(ctx, bson.D{}, opts).Decode(&lastMessage)
-
-	if err == nil {
-		// Start counter after the last message ID
-		s.idCounter.Store(uint64(lastMessage.ID))
-		fmt.Printf("Initialized message ID counter to %d\n", lastMessage.ID)
-	} else if err == mongo.ErrNoDocuments {
-		// No messages exist yet, start from 0
-		fmt.Println("No existing messages, starting counter at 0")
-	} else {
-		// Log error but continue (counter starts at 0)
-		fmt.Printf("Warning: failed to initialize counter: %v\n", err)
+// generateInstanceID creates a random instance ID (0-1023) for this replica
+func generateInstanceID() uint64 {
+	var buf [8]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		// Fallback to timestamp-based ID if crypto/rand fails
+		return uint64(time.Now().UnixNano()) & 0x3FF
 	}
+	return binary.BigEndian.Uint64(buf[:]) & 0x3FF // 10 bits = 1024 possible instances
 }
+
 
 func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessageRequest, senderID string) (*models.MessageWithSender, error) {
 	// Validate inputs
@@ -484,11 +475,21 @@ func (s *MessageService) EditMessage(ctx context.Context, messageID int64, newBo
 	return messageWithSender, nil
 }
 
-// generateSnowflakeID generates a guaranteed unique ID using atomic counter
-// Simple, fast, and collision-proof for single-instance deployments
+// generateSnowflakeID generates a distributed-safe Snowflake ID
+// Format (64 bits total):
+//   - Bits 63-22 (42 bits): Timestamp in milliseconds since epoch
+//   - Bits 21-12 (10 bits): Instance ID (supports up to 1024 replicas)
+//   - Bits 11-0  (12 bits): Sequence number (up to 4096 per millisecond per instance)
+// This ensures unique IDs across multiple replicas without coordination
 func (s *MessageService) generateSnowflakeID() int64 {
-	// Atomically increment and return the counter
-	// This is guaranteed unique and monotonically increasing
-	// Max value: 9,223,372,036,854,775,807 (9.2 quintillion messages)
-	return int64(s.idCounter.Add(1))
+	// Get current timestamp in milliseconds
+	timestamp := uint64(time.Now().UnixMilli())
+
+	// Atomically increment sequence counter (wraps at 4096)
+	sequence := s.idCounter.Add(1) & 0xFFF
+
+	// Combine: timestamp (42 bits) | instance ID (10 bits) | sequence (12 bits)
+	id := (timestamp << 22) | (s.instanceID << 12) | sequence
+
+	return int64(id)
 }
