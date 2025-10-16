@@ -24,10 +24,38 @@ type MessageService struct {
 }
 
 func NewMessageService(db *database.MongoDB, natsConn *nats.NATSConnection, userService *UserService) *MessageService {
-	return &MessageService{
+	ms := &MessageService{
 		db:          db,
 		nats:        natsConn,
 		userService: userService,
+	}
+
+	// Initialize counter from the highest existing message ID to prevent collisions after restart
+	ms.initializeCounter()
+
+	return ms
+}
+
+// initializeCounter sets the atomic counter to start after the highest existing message ID
+func (s *MessageService) initializeCounter() {
+	ctx := context.Background()
+	collection := s.db.DB.Collection("messages")
+
+	// Find the message with the highest ID
+	opts := options.FindOne().SetSort(bson.D{{Key: "_id", Value: -1}})
+	var lastMessage models.Message
+	err := collection.FindOne(ctx, bson.D{}, opts).Decode(&lastMessage)
+
+	if err == nil {
+		// Start counter after the last message ID
+		s.idCounter.Store(uint64(lastMessage.ID))
+		fmt.Printf("Initialized message ID counter to %d\n", lastMessage.ID)
+	} else if err == mongo.ErrNoDocuments {
+		// No messages exist yet, start from 0
+		fmt.Println("No existing messages, starting counter at 0")
+	} else {
+		// Log error but continue (counter starts at 0)
+		fmt.Printf("Warning: failed to initialize counter: %v\n", err)
 	}
 }
 
