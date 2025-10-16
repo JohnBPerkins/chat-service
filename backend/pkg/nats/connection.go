@@ -1,10 +1,8 @@
 package nats
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
