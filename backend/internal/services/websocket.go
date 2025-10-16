@@ -210,6 +210,7 @@ func (c *Client) handleFrame(frame *models.WSFrame) {
 			ConversationID: data.ConversationID,
 			ClientMsgID:    data.ClientMsgID,
 			Body:           data.Body,
+			SendTime:       data.SendTime,
 		}
 
 		message, err := c.Hub.messageService.SendMessage(ctx, req, c.UserID)

@@ -145,6 +145,7 @@ func (s *MessageService) SendMessage(ctx context.Context, req *models.SendMessag
 			Body:           sanitizedBody,
 			CreatedAt:      message.CreatedAt,
 			Sender:         messageWithSender.Sender,
+			SendTime:       req.SendTime,
 		}
 
 		err = s.nats.PublishMessage(sanitizedConversationID, wsMessageData)

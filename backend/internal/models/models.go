@@ -106,6 +106,7 @@ type SendMessageRequest struct {
 	ConversationID string `json:"conversationId"`
 	ClientMsgID    string `json:"clientMsgId"`
 	Body           string `json:"body"`
+	SendTime       int64  `json:"sendTime,omitempty"` // Client timestamp for end-to-end latency measurement
 }
 
 // MarkMessageAsReadRequest represents the request to mark a message as read
@@ -137,6 +138,7 @@ type WSMessageSendData struct {
 	ConversationID string `json:"conversationId"`
 	ClientMsgID    string `json:"clientMsgId"`
 	Body           string `json:"body"`
+	SendTime       int64  `json:"sendTime,omitempty"` // Client timestamp for end-to-end latency measurement
 }
 
 type WSMessageEditData struct {
@@ -184,6 +186,7 @@ type WSMessageNewData struct {
 	Body           string    `json:"body"`
 	CreatedAt      time.Time `json:"createdAt"`
 	Sender         *User     `json:"sender,omitempty"`
+	SendTime       int64     `json:"sendTime,omitempty"` // Client timestamp for end-to-end latency measurement
 }
 
 type WSTypingUpdateEventData struct {

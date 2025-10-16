@@ -34,25 +34,15 @@ const TICK_MS = Math.max(1, Math.floor(1000 / Math.max(1, (MSGS_PER_SEC / BURST)
 // Test length
 const DURATION = __ENV.DURATION || '30s';  // Shorter default: 30s
 
-// Always use 1 listener (multiple listeners count same message multiple times)
-const LISTENERS = 1;
-
 // Scenarios
 export const options = {
   scenarios: {
-    listeners: {
-      executor: 'constant-vus',
-      vus: LISTENERS,
-      duration: DURATION,
-      exec: 'listener',
-      startTime: '0s',
-    },
     senders: {
       executor: 'constant-vus',
       vus: SENDER_VUS,
       duration: DURATION,
       exec: 'sender',
-      startTime: '2s',
+      startTime: '0s',
     },
   },
   thresholds: {
@@ -76,72 +66,13 @@ export function setup() {
   return { TEST_RUN_ID };
 }
 
-// Listener(s) – minimal logging, map for de-dupe & latency
-export function listener(data) {
-  const TEST_RUN_ID = data.TEST_RUN_ID;
-  const uid = `${USER_ID}-listener-${__VU}`;
-  const url = `${BASE_URL}/ws?userId=${encodeURIComponent(uid)}`;
-  const seen = new Set();
-  let skipped = 0;
-  let total = 0;
-
-  const res = ws.connect(url, { timeout: '30s' }, (socket) => {
-    socket.on('open', () => {
-      socket.send(JSON.stringify({ type: 'subscribe', ts: Date.now(), data: { conversationId: CONVERSATION_ID } }));
-    });
-
-    socket.on('message', (raw) => {
-      // Parsing can be a hotspot—keep it lean
-      let f;
-      try { f = JSON.parse(raw); } catch { return; }
-      if (f.type !== 'message.new' || !f.data) return;
-
-      total++;
-
-      // DEBUG: Log first 10 messages to see what's happening
-      if (total <= 10) {
-        console.log(`DEBUG msg ${total}: type=${f.type},
-        clientMsgId="${f.data.clientMsgId}", id=${f.data.id},
-        startsWithRun=${f.data.clientMsgId?.startsWith(TEST_RUN_ID)}`);
-      }
-
-      // Only count messages from THIS test run
-      if (!f.data.clientMsgId || !f.data.clientMsgId.startsWith(TEST_RUN_ID)) {
-        skipped++;
-        if (skipped <= 5) {
-          console.log(`Skipped: clientMsgId=${f.data.clientMsgId}, id=${f.data.id}`);
-        }
-        return; // Skip messages without clientMsgId or from other test runs
-      }
-
-      // Backend sends server-generated 'id', not 'clientMsgId'
-      const msgId = f.data.id;
-      if (!msgId || seen.has(msgId)) return;
-      seen.add(msgId);
-      messagesRecv.add(1);
-
-      // Latency: backend ts is Unix milliseconds
-      if (typeof f.ts === 'number' && f.ts > 0) {
-        const latency = Date.now() - f.ts;
-        if (latency >= 0 && latency < 60000) {
-          messageLatency.add(latency);
-        }
-      }
-    });
-
-    socket.on('error', () => { /* swallow to avoid spam */ });
-    socket.setTimeout(() => socket.close(), 2 * 60 * 1000); // individual listener lifespan guard
-  });
-
-  check(res, { 'listener connected': (r) => r && r.status === 101 });
-}
-
-// Sender – emits bursts on setInterval for tighter pacing
+// Sender – emits bursts on setInterval for tighter pacing and tracks received messages
 export function sender(data) {
   const TEST_RUN_ID = data.TEST_RUN_ID;
   const uid = `${USER_ID}-sender-${__VU}`;
   const url = `${BASE_URL}/ws?userId=${encodeURIComponent(uid)}`;
   const body = `Load test: ${randomString(Math.max(1, MESSAGE_SIZE - 12))}`;
+  const seen = new Set();
 
   const res = ws.connect(url, { timeout: '30s' }, (socket) => {
     let sent = 0;
@@ -167,6 +98,31 @@ export function sender(data) {
         }
         sent += BURST;
       }, TICK_MS);
+    });
+
+    socket.on('message', (raw) => {
+      let f;
+      try { f = JSON.parse(raw); } catch { return; }
+      if (f.type !== 'message.new' || !f.data) return;
+
+      // Only count messages from THIS test run
+      if (!f.data.clientMsgId || !f.data.clientMsgId.startsWith(TEST_RUN_ID)) {
+        return; // Skip messages from other test runs
+      }
+
+      // Deduplicate by server-generated ID
+      const msgId = f.data.id;
+      if (!msgId || seen.has(msgId)) return;
+      seen.add(msgId);
+      messagesRecv.add(1);
+
+      // Calculate end-to-end latency using sendTime from client
+      if (typeof f.data.sendTime === 'number' && f.data.sendTime > 0) {
+        const latency = Date.now() - f.data.sendTime;
+        if (latency >= 0 && latency < 60000) {
+          messageLatency.add(latency);
+        }
+      }
     });
 
     socket.on('error', () => { messagesFail.add(1); });
