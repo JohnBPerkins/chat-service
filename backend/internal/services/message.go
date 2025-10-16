@@ -448,21 +448,15 @@ func (s *MessageService) EditMessage(ctx context.Context, messageID int64, newBo
 // Format: timestamp (41 bits) + sequence (23 bits)
 // Guarantees uniqueness even under extreme concurrent load
 func (s *MessageService) generateSnowflakeID() int64 {
-	for {
-		// Get current timestamp (milliseconds since epoch)
-		timestamp := time.Now().UnixMilli()
+	// Get current timestamp (milliseconds since epoch)
+	timestamp := time.Now().UnixMilli()
 
-		// Atomically increment counter and mask to 23 bits (0-8,388,607)
-		sequence := s.idCounter.Add(1) & 0x7FFFFF
+	// Atomically increment counter and mask to 23 bits (0-8,388,607)
+	sequence := s.idCounter.Add(1) & 0x7FFFFF
 
-		// Combine: timestamp (41 bits) << 23 | sequence (23 bits)
-		// This gives us 8.3M unique IDs per millisecond
-		id := (timestamp << 23) | int64(sequence)
+	// Combine: timestamp (41 bits) << 23 | sequence (23 bits)
+	// Mask timestamp to 41 bits to ensure result is always positive
+	id := ((timestamp & 0x1FFFFFFFFFF) << 23) | int64(sequence)
 
-		// ID must be positive for MongoDB compatibility
-		if id > 0 {
-			return id
-		}
-		// Retry if negative (extremely rare edge case at timestamp boundaries)
-	}
+	return id
 }
