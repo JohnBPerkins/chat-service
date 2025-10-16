@@ -89,7 +89,7 @@ func (h *WebSocketHub) HandleWebSocket(w http.ResponseWriter, r *http.Request, u
 		ID:            clientID,
 		UserID:        userID,
 		Conn:          conn,
-		Send:          make(chan *models.WSFrame, 100000), // Increased to 100k for high-throughput broadcasts
+		Send:          make(chan *models.WSFrame, 500000), // 500k buffer for high-throughput broadcasts
 		Hub:           h,
 		subscriptions: make(map[string]bool),
 	}
@@ -379,9 +379,9 @@ func (c *Client) sendFrame(frameType string, data interface{}) {
 	case c.Send <- frame:
 		// Message sent successfully
 	default:
-		// Buffer full - close connection safely
-		log.Printf("WebSocket client %s send buffer full, closing connection", c.ID)
-		c.safeClose()
+		// Buffer full - drop message to prevent client disconnect
+		// In high-throughput scenarios, dropping occasional messages is better than disconnecting
+		log.Printf("WebSocket client %s send buffer full, dropping message (type: %s)", c.ID, frameType)
 	}
 }
 
@@ -666,9 +666,9 @@ func (h *WebSocketHub) broadcastToSubscription(sub *ConversationSubscription, fr
 			case client.Send <- frame:
 				// Sent successfully
 			default:
-				// Buffer full - close connection
-				log.Printf("WebSocket client %s send buffer full during broadcast", client.ID)
-				go client.safeClose()
+				// Buffer full - drop message to prevent client disconnect
+				// In high-throughput scenarios, dropping occasional messages is better than disconnecting
+				// Don't log every drop to avoid log spam - client stays connected
 			}
 		}()
 	}
