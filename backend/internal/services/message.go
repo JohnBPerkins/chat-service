@@ -444,19 +444,11 @@ func (s *MessageService) EditMessage(ctx context.Context, messageID int64, newBo
 	return messageWithSender, nil
 }
 
-// generateSnowflakeID generates a collision-resistant ID using a hybrid approach
-// Format: timestamp (41 bits) + sequence (23 bits)
-// Guarantees uniqueness even under extreme concurrent load
+// generateSnowflakeID generates a guaranteed unique ID using atomic counter
+// Simple, fast, and collision-proof for single-instance deployments
 func (s *MessageService) generateSnowflakeID() int64 {
-	// Get current timestamp (milliseconds since epoch)
-	timestamp := time.Now().UnixMilli()
-
-	// Atomically increment counter and mask to 23 bits (0-8,388,607)
-	sequence := s.idCounter.Add(1) & 0x7FFFFF
-
-	// Combine: timestamp (41 bits) << 23 | sequence (23 bits)
-	// Mask timestamp to 41 bits to ensure result is always positive
-	id := ((timestamp & 0x1FFFFFFFFFF) << 23) | int64(sequence)
-
-	return id
+	// Atomically increment and return the counter
+	// This is guaranteed unique and monotonically increasing
+	// Max value: 9,223,372,036,854,775,807 (9.2 quintillion messages)
+	return int64(s.idCounter.Add(1))
 }
