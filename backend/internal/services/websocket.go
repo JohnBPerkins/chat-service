@@ -136,7 +136,12 @@ func (c *Client) writePump() {
 	ticker := time.NewTicker(54 * time.Second)
 	defer ticker.Stop()
 
+	logTicker := time.NewTicker(5 * time.Second)
+	defer logTicker.Stop()
+
 	ctx := context.Background()
+	messagesSent := 0
+
 	for {
 		select {
 		case frame, ok := <-c.Send:
@@ -154,6 +159,15 @@ func (c *Client) writePump() {
 			if err := c.Conn.Write(ctx, websocket.MessageText, frameBytes); err != nil {
 				log.Printf("WebSocket write error: %v", err)
 				return
+			}
+
+			messagesSent++
+
+		case <-logTicker.C:
+			queueSize := len(c.Send)
+			if queueSize > 1000 || messagesSent > 0 {
+				log.Printf("Client %s: sent %d msgs in 5s, queue: %d/500000", c.ID, messagesSent, queueSize)
+				messagesSent = 0
 			}
 
 		case <-ticker.C:
