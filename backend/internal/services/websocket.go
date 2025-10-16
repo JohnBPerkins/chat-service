@@ -548,7 +548,8 @@ func (h *WebSocketHub) setupNATSSubscriptions(sub *ConversationSubscription) {
 
 			// Debug: Log NATS message received
 			if clientCount > 0 {
-				log.Printf("NATS received message %d for conv %s, broadcasting to %d clients", messageData.ID, sub.ConversationID, clientCount)
+				log.Printf("NATS received message %d (clientMsgId: %s) for conv %s, broadcasting to %d clients",
+					messageData.ID, messageData.ClientMsgID, sub.ConversationID, clientCount)
 			}
 
 			frame := &models.WSFrame{
