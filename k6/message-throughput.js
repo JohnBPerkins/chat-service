@@ -136,7 +136,7 @@ export function sender(data) {
 export function handleSummary(data) {
   const sent = data.metrics.messages_sent?.values.count || 0;
   const recv = data.metrics.messages_received?.values.count || 0;
-  const deliveryPct = sent > 0 ? ((recv / sent) * 100).toFixed(2) : 0;
+  const deliveryPct = sent > 0 ? (((recv / 10) / sent) * 100).toFixed(2) : 0;
 
   console.log('\n' + '='.repeat(80));
   console.log('MESSAGE THROUGHPUT TEST SUMMARY');
