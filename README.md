@@ -2,7 +2,7 @@
 
 ** 🔗 Live Demo: https://chatservicefront.vercel.app/ **
 
-A real-time chat application with a Next.js frontend and Go backend, featuring WebSocket communication, MongoDB persistence, and NATS JetStream for scalable message distribution.
+A real-time chat application with a Next.js frontend and Go backend, featuring WebSocket communication, MongoDB persistence, and NATS for scalable message distribution.
 
 ## Features
 
